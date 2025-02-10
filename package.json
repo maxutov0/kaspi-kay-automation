@@ -11,5 +11,8 @@
     "lodash": "^4.17.21",
     "webdriverio": "^9.8.0",
     "wrap-ansi": "^9.0.0"
+  },
+  "installConfig": {
+    "hoistingLimits": "workspaces"
   }
 }
