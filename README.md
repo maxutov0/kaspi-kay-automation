@@ -53,3 +53,8 @@ sudo apt-get install -y libc6:amd64 libstdc++6:amd64
 ```sh
 sudo apt-get install -y qemu-user-static
 ```
+
+## Cron (env depends on shell)
+```sh
+* * * * * /bin/bash -c '/usr/local/bin/adb shell am instrument -w -r -e debug false -e class "hehe.miras.kaspibusinesstest.KaspiBusinessTest" hehe.miras.kaspibusinesstest.test/androidx.test.runner.AndroidJUnitRunner' >> ~/adb_cron.log 2>&1
+```
