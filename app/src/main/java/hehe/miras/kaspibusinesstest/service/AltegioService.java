@@ -19,7 +19,7 @@ import hehe.miras.kaspibusinesstest.model.AltegioResponse;
 public class AltegioService {
     private static final String BASE_URL = "https://api.alteg.io/";
     private static final String PARTNER_TOKEN = "Bearer 6f8c65e9z3j5ssnjsc45"; // <-- Реальный токен
-    private static final int COMPANY_ID = 79178;
+    private static final int COMPANY_ID = 690192;
 
     private AltegioApi api;
     private String userToken; // Сохраненный userToken после авторизации

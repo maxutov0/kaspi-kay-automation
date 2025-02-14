@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
@@ -35,10 +36,17 @@ public class KaspiBusinessTest {
     private static final int LAUNCH_TIMEOUT = 30000;
 
     private List<Appointment> appointments; // Список записей из Altegio
+    private List<String> allowedPhones = new ArrayList<>(); // Массив разрешенных номеров телефонов
 
     @Before
     public void setUp() {
         device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+
+        // Добавляем разрешенные номера телефонов
+        allowedPhones.add("77753251368");
+        allowedPhones.add("77477898496");
+        allowedPhones.add("77471022106");
+        allowedPhones.add("77058805927");
 
         // Получаем записи из Altegio перед запуском UI-тестов
         fetchAppointments();
@@ -60,26 +68,52 @@ public class KaspiBusinessTest {
         assertNotNull("Приложение не запустилось", device.findObject(By.pkg(APP_PACKAGE)));
 
         if (appointments != null && !appointments.isEmpty()) {
-            Appointment firstAppointment = appointments.get(0); // Берем первую запись из CRM
+            // Фильтруем записи по разрешенным номерам телефонов
+            List<Appointment> filteredAppointments = filterAppointmentsByAllowedPhones(appointments);
 
-            // wait for the app to load
-            device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
+            if (!filteredAppointments.isEmpty()) {
+                Log.d("KaspiBusinessTest", "Filtered appointments count: " + filteredAppointments.size());
+                for (Appointment appointment : filteredAppointments) {
+                    Log.d("KaspiBusinessTest", "Processing appointment with phone: " + appointment.getClient().getPhone());
+                    // wait for the app to load
+                    device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
-            pressTabButton();
-            enterPrice(5000); // Можно заменить на цену из CRM
-            enterPhoneNumber("77477898496"); // Используем номер клиента из Altegio
-            clickSendButton();
-            clickCloseButton();
+                    pressTabButton();
+                    enterPrice(5000); // Можно заменить на цену из CRM
+                    enterPhoneNumber(appointment.getClient().getPhone()); // Используем номер клиента из Altegio
+                    clickSendButton();
+                    clickCloseButton();
+                }
+            } else {
+                Log.e("KaspiBusinessTest", "Нет записей с разрешенными номерами телефонов, тест не выполняется.");
+            }
         } else {
             Log.e("KaspiBusinessTest", "Нет записей из Altegio, тест не выполняется.");
         }
     }
 
+    private List<Appointment> filterAppointmentsByAllowedPhones(List<Appointment> appointments) {
+        List<Appointment> filteredAppointments = new ArrayList<>();
+        for (Appointment appointment : appointments) {
+            String phone = appointment.getClient().getPhone();
+            Log.d("KaspiBusinessTest", "Checking phone: " + phone); // Log the phone being checked
+
+            if (allowedPhones.contains(phone)) {
+                Log.d("KaspiBusinessTest", "Phone allowed: " + phone); // Log the phone if it's allowed
+                filteredAppointments.add(appointment);
+            } else {
+                Log.d("KaspiBusinessTest", "Phone not allowed: " + phone); // Log the phone if it's not allowed
+            }
+        }
+        return filteredAppointments;
+    }
+
     private void pressTabButton() {
         try {
             // Ищем элемент по resource-id
-            UiObject tabButton = device.findObject(new UiSelector().resourceId("hr.asseco.android.kaspibusiness:id/remotePaymentFragment"));
-    
+            UiObject tabButton = device.findObject(
+                    new UiSelector().resourceId("hr.asseco.android.kaspibusiness:id/remotePaymentFragment"));
+
             // Если элемент найден, кликаем
             if (tabButton.exists() && tabButton.isEnabled()) {
                 tabButton.click();
@@ -120,7 +154,6 @@ public class KaspiBusinessTest {
         }
     }
 
-    // --- Подключение к API Altegio ---
     private void fetchAppointments() {
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -130,16 +163,25 @@ public class KaspiBusinessTest {
             public void onResponse(Call<List<Appointment>> call, Response<List<Appointment>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     appointments = response.body();
-                    Log.d("Altegio", "Получено записей: " + appointments.size());
+
+                    Log.d("KaspiBusinessTest", "Fetched " + appointments.size() + " records from Altegio");
+
+                    // Log details of each fetched record
+                    for (Appointment appointment : appointments) {
+                        Log.d("KaspiBusinessTest", "Fetched Record - ID: " + appointment.getId() +
+                                ", Client Name: " + appointment.getClient().getName() +
+                                ", Phone: " + appointment.getClient().getPhone() +
+                                ", Datetime: " + appointment.getDate());
+                    }
                 } else {
-                    Log.e("Altegio", "Ошибка запроса: " + response.code());
+                    Log.e("KaspiBusinessTest", "Ошибка запроса: " + response.code());
                 }
                 latch.countDown(); // Освобождаем поток после завершения запроса
             }
 
             @Override
             public void onFailure(Call<List<Appointment>> call, Throwable t) {
-                Log.e("Altegio", "Ошибка подключения: " + t.getMessage());
+                Log.e("KaspiBusinessTest", "Ошибка подключения: " + t.getMessage());
                 latch.countDown(); // Освобождаем поток даже при ошибке
             }
         });
