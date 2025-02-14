@@ -1,0 +1,29 @@
+{
+	"name": "Java + Android SDK",
+	"image": "mcr.microsoft.com/devcontainers/java:1-21-bullseye",
+	"features": {
+		"ghcr.io/devcontainers/features/java:1": {
+			"version": "none",
+			"installMaven": "true",
+			"installGradle": "true"
+		}
+	},
+	// "postCreateCommand": "/bin/bash /opt/install-android-sdk.sh",
+	// "postCreateCommand": "echo 'Devcontainer started successfully'",
+	"postCreateCommand": "echo 'export PATH=$PATH:/opt/android-sdk/cmdline-tools/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/tools/bin' >> /root/.bashrc",
+	"containerEnv": {
+		"SHELL": "/bin/bash",
+		"ANDROID_HOME": "/opt/android-sdk",
+		"ANDROID_SDK_ROOT": "/opt/android-sdk"
+	},
+	"mounts": [],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.vscode-java-pack",
+				"ms-azuretools.vscode-docker"
+			]
+		}
+	},
+	"remoteUser": "root"
+}
