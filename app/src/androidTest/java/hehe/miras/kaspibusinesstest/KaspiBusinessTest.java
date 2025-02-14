@@ -34,6 +34,9 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.TimeZone;
+import hehe.miras.kaspibusinesstest.database.AppointmentRepository;
+
+import android.content.Context;
 
 @RunWith(AndroidJUnit4.class)
 public class KaspiBusinessTest {
@@ -76,7 +79,9 @@ public class KaspiBusinessTest {
 
         if (appointments != null && !appointments.isEmpty()) {
             // Фильтруем записи по разрешенным номерам телефонов
-            List<Appointment> filteredAppointments = filterByDate(filterAppointmentsByAllowedPhones(appointments));
+            List<Appointment> filteredAppointments = filterByDate(
+                    filterAppointmentsByAllowedPhones(appointments),
+                    InstrumentationRegistry.getInstrumentation().getTargetContext());
 
             if (!filteredAppointments.isEmpty()) {
                 Log.d("KaspiBusinessTest", "Filtered appointments count: " + filteredAppointments.size());
@@ -100,49 +105,47 @@ public class KaspiBusinessTest {
         }
     }
 
-    private List<Appointment> filterByDate(List<Appointment> appointments) {
+    private List<Appointment> filterByDate(List<Appointment> appointments, Context context) {
+        AppointmentRepository repository = new AppointmentRepository(context);
         List<Appointment> filteredAppointments = new ArrayList<>();
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-    
+
         // Устанавливаем таймзону UTC+5
-        TimeZone timeZone = TimeZone.getTimeZone("Asia/Oral"); // Уралск (или "Asia/Aqtobe" для Актобе)
+        TimeZone timeZone = TimeZone.getTimeZone("Asia/Oral");
         dateFormat.setTimeZone(timeZone);
-    
-        // Получаем текущее время с учетом UTC+5
+
         long now = System.currentTimeMillis() + timeZone.getRawOffset();
         long twentyFourHoursInMillis = TimeUnit.HOURS.toMillis(24);
         long maxTime = now + twentyFourHoursInMillis;
-    
+
         for (Appointment appointment : appointments) {
             try {
+                if (repository.isAppointmentProcessed(appointment.getId())) {
+                    Log.d("KaspiBusinessTest", "❌ Пропущено (уже обработано): ID=" + appointment.getId());
+                    continue; // Пропускаем уже обработанные записи
+                }
+
                 Date appointmentDate = dateFormat.parse(appointment.getDate());
-    
                 if (appointmentDate != null) {
                     long appointmentTime = appointmentDate.getTime();
-    
+
                     if (appointmentTime >= now && appointmentTime <= maxTime) {
-                        Log.d("KaspiBusinessTest", "✅ Запись добавлена: ID=" + appointment.getId() +
-                                ", Время записи: " + appointment.getDate() + " (UTC+5)");
+                        Log.d("KaspiBusinessTest", "✅ Запись добавлена: ID=" + appointment.getId());
                         filteredAppointments.add(appointment);
-                    } else if (appointmentTime < now) {
-                        Log.d("KaspiBusinessTest", "❌ Запись пропущена (уже прошла): ID=" + appointment.getId() +
-                                ", Время записи: " + appointment.getDate() + " (UTC+5)");
+                        repository.addProcessedAppointment(appointment.getId()); // Добавляем в БД
                     } else {
-                        Log.d("KaspiBusinessTest", "❌ Запись пропущена (более чем через 24 часа): ID=" + appointment.getId() +
-                                ", Время записи: " + appointment.getDate() + " (UTC+5)");
+                        Log.d("KaspiBusinessTest", "❌ Пропущено (не в пределах 24 часов): ID=" + appointment.getId());
                     }
                 } else {
-                    Log.d("KaspiBusinessTest", "❌ Запись пропущена (ошибка парсинга даты): ID=" + appointment.getId() +
-                            ", Дата: " + appointment.getDate());
+                    Log.d("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId());
                 }
             } catch (ParseException e) {
-                Log.e("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId() +
-                        ", Дата: " + appointment.getDate(), e);
+                Log.e("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId(), e);
             }
         }
-    
-        Log.d("KaspiBusinessTest", "📊 Итоговый список записей после фильтрации (только в течение 24 часов, UTC+5): " 
-                + filteredAppointments.size() + " записей.");
+
+        Log.d("KaspiBusinessTest",
+                "📊 Итоговый список записей после фильтрации: " + filteredAppointments.size() + " записей.");
         return filteredAppointments;
     }
 
