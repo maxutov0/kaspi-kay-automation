@@ -26,5 +26,8 @@ adb install-multiple -r ./base.apk ./split_config.arm64_v8a.apk ./split_config.x
 yarn run appium
 ```
 
-## Test with youtube first
-
+## Install instrumentation test APK
+```sh
+echo "Installing instrumentation test APK..."
+adb install -r ./builds/instrumentation-test.apk
+```
