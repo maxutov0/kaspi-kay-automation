@@ -28,6 +28,12 @@ import hehe.miras.kaspibusinesstest.api.AltegioApi;
 import hehe.miras.kaspibusinesstest.model.Appointment;
 import hehe.miras.kaspibusinesstest.service.AltegioService;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+
 @RunWith(AndroidJUnit4.class)
 public class KaspiBusinessTest {
 
@@ -69,7 +75,7 @@ public class KaspiBusinessTest {
 
         if (appointments != null && !appointments.isEmpty()) {
             // Фильтруем записи по разрешенным номерам телефонов
-            List<Appointment> filteredAppointments = filterAppointmentsByAllowedPhones(appointments);
+            List<Appointment> filteredAppointments = filterByDate(filterAppointmentsByAllowedPhones(appointments));
 
             if (!filteredAppointments.isEmpty()) {
                 Log.d("KaspiBusinessTest", "Filtered appointments count: " + filteredAppointments.size());
@@ -90,6 +96,29 @@ public class KaspiBusinessTest {
         } else {
             Log.e("KaspiBusinessTest", "Нет записей из Altegio, тест не выполняется.");
         }
+    }
+
+    private List<Appointment> filterByDate(List<Appointment> appointments) {
+        List<Appointment> filteredAppointments = new ArrayList<>();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+    
+        long now = System.currentTimeMillis(); // Текущее время в миллисекундах
+        long twentyFourHoursInMillis = TimeUnit.HOURS.toMillis(24); // 24 часа в миллисекундах
+    
+        for (Appointment appointment : appointments) {
+            try {
+                Date appointmentDate = dateFormat.parse(appointment.getDate());
+                if (appointmentDate != null) {
+                    long appointmentTime = appointmentDate.getTime();
+                    if (appointmentTime <= now + twentyFourHoursInMillis) {
+                        filteredAppointments.add(appointment);
+                    }
+                }
+            } catch (ParseException e) {
+                Log.e("KaspiBusinessTest", "Ошибка парсинга даты: " + appointment.getDate(), e);
+            }
+        }
+        return filteredAppointments;
     }
 
     private List<Appointment> filterAppointmentsByAllowedPhones(List<Appointment> appointments) {
