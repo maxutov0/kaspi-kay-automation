@@ -28,6 +28,13 @@ import hehe.miras.kaspibusinesstest.api.AltegioApi;
 import hehe.miras.kaspibusinesstest.model.Appointment;
 import hehe.miras.kaspibusinesstest.service.AltegioService;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import java.util.TimeZone;
+
 @RunWith(AndroidJUnit4.class)
 public class KaspiBusinessTest {
 
@@ -69,12 +76,13 @@ public class KaspiBusinessTest {
 
         if (appointments != null && !appointments.isEmpty()) {
             // Фильтруем записи по разрешенным номерам телефонов
-            List<Appointment> filteredAppointments = filterAppointmentsByAllowedPhones(appointments);
+            List<Appointment> filteredAppointments = filterByDate(filterAppointmentsByAllowedPhones(appointments));
 
             if (!filteredAppointments.isEmpty()) {
                 Log.d("KaspiBusinessTest", "Filtered appointments count: " + filteredAppointments.size());
                 for (Appointment appointment : filteredAppointments) {
-                    Log.d("KaspiBusinessTest", "Processing appointment with phone: " + appointment.getClient().getPhone());
+                    Log.d("KaspiBusinessTest",
+                            "Processing appointment with phone: " + appointment.getClient().getPhone());
                     // wait for the app to load
                     device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
@@ -90,6 +98,52 @@ public class KaspiBusinessTest {
         } else {
             Log.e("KaspiBusinessTest", "Нет записей из Altegio, тест не выполняется.");
         }
+    }
+
+    private List<Appointment> filterByDate(List<Appointment> appointments) {
+        List<Appointment> filteredAppointments = new ArrayList<>();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+    
+        // Устанавливаем таймзону UTC+5
+        TimeZone timeZone = TimeZone.getTimeZone("Asia/Oral"); // Уралск (или "Asia/Aqtobe" для Актобе)
+        dateFormat.setTimeZone(timeZone);
+    
+        // Получаем текущее время с учетом UTC+5
+        long now = System.currentTimeMillis() + timeZone.getRawOffset();
+        long twentyFourHoursInMillis = TimeUnit.HOURS.toMillis(24);
+        long maxTime = now + twentyFourHoursInMillis;
+    
+        for (Appointment appointment : appointments) {
+            try {
+                Date appointmentDate = dateFormat.parse(appointment.getDate());
+    
+                if (appointmentDate != null) {
+                    long appointmentTime = appointmentDate.getTime();
+    
+                    if (appointmentTime >= now && appointmentTime <= maxTime) {
+                        Log.d("KaspiBusinessTest", "✅ Запись добавлена: ID=" + appointment.getId() +
+                                ", Время записи: " + appointment.getDate() + " (UTC+5)");
+                        filteredAppointments.add(appointment);
+                    } else if (appointmentTime < now) {
+                        Log.d("KaspiBusinessTest", "❌ Запись пропущена (уже прошла): ID=" + appointment.getId() +
+                                ", Время записи: " + appointment.getDate() + " (UTC+5)");
+                    } else {
+                        Log.d("KaspiBusinessTest", "❌ Запись пропущена (более чем через 24 часа): ID=" + appointment.getId() +
+                                ", Время записи: " + appointment.getDate() + " (UTC+5)");
+                    }
+                } else {
+                    Log.d("KaspiBusinessTest", "❌ Запись пропущена (ошибка парсинга даты): ID=" + appointment.getId() +
+                            ", Дата: " + appointment.getDate());
+                }
+            } catch (ParseException e) {
+                Log.e("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId() +
+                        ", Дата: " + appointment.getDate(), e);
+            }
+        }
+    
+        Log.d("KaspiBusinessTest", "📊 Итоговый список записей после фильтрации (только в течение 24 часов, UTC+5): " 
+                + filteredAppointments.size() + " записей.");
+        return filteredAppointments;
     }
 
     private List<Appointment> filterAppointmentsByAllowedPhones(List<Appointment> appointments) {
