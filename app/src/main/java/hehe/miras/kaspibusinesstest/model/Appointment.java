@@ -17,7 +17,7 @@ public class Appointment {
     }
 
     public Client getClient() {
-        return client;
+        return client != null ? client : new Client();
     }
 
     public static class Client {
