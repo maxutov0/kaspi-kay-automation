@@ -7,7 +7,7 @@
     "appium": "^2.15.0",
     "appium-uiautomator2-driver": "^4.0.0",
     "bluebird": "^3.7.2",
-    "esbuild": "^0.24.2",
+    "esbuild": "^0.25.0",
     "lodash": "^4.17.21",
     "webdriverio": "^9.8.0",
     "wrap-ansi": "^9.0.0"
