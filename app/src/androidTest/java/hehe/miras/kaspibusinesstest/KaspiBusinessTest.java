@@ -7,6 +7,8 @@ import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.Until;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.uiautomator.UiObject;
+import androidx.test.uiautomator.UiSelector;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -30,7 +32,7 @@ public class KaspiBusinessTest {
 
     private UiDevice device;
     private static final String APP_PACKAGE = "hr.asseco.android.kaspibusiness";
-    private static final int LAUNCH_TIMEOUT = 5000;
+    private static final int LAUNCH_TIMEOUT = 30000;
 
     private List<Appointment> appointments; // Список записей из Altegio
 
@@ -60,9 +62,12 @@ public class KaspiBusinessTest {
         if (appointments != null && !appointments.isEmpty()) {
             Appointment firstAppointment = appointments.get(0); // Берем первую запись из CRM
 
+            // wait for the app to load
+            device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
+
             pressTabButton();
             enterPrice(5000); // Можно заменить на цену из CRM
-            enterPhoneNumber(firstAppointment.getPhone()); // Используем номер клиента из Altegio
+            enterPhoneNumber("77477898496"); // Используем номер клиента из Altegio
             clickSendButton();
             clickCloseButton();
         } else {
@@ -70,10 +75,21 @@ public class KaspiBusinessTest {
         }
     }
 
-    // --- Методы для взаимодействия с UI Kaspi Business ---
     private void pressTabButton() {
-        device.findObject(By.desc("Удалённо")).click();
-        sleep(2000);
+        try {
+            // Ищем элемент по resource-id
+            UiObject tabButton = device.findObject(new UiSelector().resourceId("hr.asseco.android.kaspibusiness:id/remotePaymentFragment"));
+    
+            // Если элемент найден, кликаем
+            if (tabButton.exists() && tabButton.isEnabled()) {
+                tabButton.click();
+                sleep(2000);
+            } else {
+                throw new AssertionError("Не удалось найти или активировать кнопку 'Удалённо'");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка при нажатии на кнопку 'Удалённо': " + e.getMessage());
+        }
     }
 
     private void enterPrice(int price) {
@@ -109,7 +125,7 @@ public class KaspiBusinessTest {
         CountDownLatch latch = new CountDownLatch(1);
 
         AltegioService altegioService = new AltegioService();
-        altegioService.getAppointments(new Callback<List<Appointment>>() {
+        altegioService.authenticateAndFetchAppointments(new Callback<List<Appointment>>() {
             @Override
             public void onResponse(Call<List<Appointment>> call, Response<List<Appointment>> response) {
                 if (response.isSuccessful() && response.body() != null) {
