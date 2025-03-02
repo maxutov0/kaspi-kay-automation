@@ -44,6 +44,8 @@ import hehe.miras.kaspibusinesstest.service.SupabaseService;
 
 import static org.junit.Assert.fail;
 
+import androidx.test.uiautomator.BySelector;
+
 @RunWith(AndroidJUnit4.class)
 public class KaspiBusinessTest {
 
@@ -120,59 +122,50 @@ public class KaspiBusinessTest {
             // Ждем загрузки приложения
             device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
-            // Проверяем, был ли уже выставлен счет по данной записи
-            supabaseService.isAppointmentProcessed(appointment.getId(),
-                    new SupabaseService.SupabaseCallback<Boolean>() {
-                        @Override
-                        public void onResult(Boolean isProcessed) {
-                            if (isProcessed) {
-                                // Если счет уже был отправлен, проверяем, прошло ли 10 часов
-                                long lastSentTimestamp = supabaseService.getAppointmentTimestamp(appointment.getId());
-                                long currentTime = System.currentTimeMillis();
-                                long tenHoursInMillis = TimeUnit.HOURS.toMillis(10);
+            // Проверяем, был ли уже выставлен счет по данной записи (синхронно)
+            boolean isProcessed = supabaseService.isAppointmentProcessedSync(appointment.getId());
+            Log.d("KaspiBusinessTest", "isAppointmentProcessedSync result: " + isProcessed);
 
-                                if (currentTime - lastSentTimestamp >= tenHoursInMillis) {
-                                    // Отправляем напоминание через Wappi
-                                    String phone = appointment.getClient().getPhone();
-                                    String message = "Напоминаем, что у вас есть неоплаченный счет. Пожалуйста, проверьте ваш Kaspi Bank.";
-                                    wappiService.sendMessage(phone, message);
-                                    Log.d("KaspiBusinessTest", "Напоминание отправлено на номер: " + phone);
-                                }
-                            } else {
-                                // Если счет не был отправлен, отправляем его
-                                try {
-                                    pressTabButton();
-                                    enterPrice(TRANSACTION_AMOUNT); // Используем константу для цены
-                                    enterPhoneNumber(appointment.getClient().getPhone());
-                                    clickSendButton();
-                                    clickCloseButton();
+            if (isProcessed) {
+                // Если счет уже был отправлен, проверяем, прошло ли 10 часов
+                long lastSentTimestamp = supabaseService.getAppointmentTimestamp(appointment.getId());
+                long currentTime = System.currentTimeMillis();
+                long tenHoursInMillis = TimeUnit.HOURS.toMillis(10);
 
-                                    // Сохраняем информацию о транзакции в Supabase
-                                    supabaseService.addProcessedAppointment(appointment.getId(),
-                                            System.currentTimeMillis());
-                                    Log.d("KaspiBusinessTest",
-                                            "Счет отправлен на номер: " + appointment.getClient().getPhone());
-                                } catch (Exception e) {
-                                    Log.e("KaspiBusinessTest", "Ошибка при обработке транзакции: " + e.getMessage());
-                                    fail("Тест завершился с ошибкой: " + e.getMessage());
-                                }
-                            }
-                        }
-                    });
-        }
+                if (currentTime - lastSentTimestamp >= tenHoursInMillis) {
+                    // Отправляем напоминание через Wappi
+                    String phone = appointment.getClient().getPhone();
+                    String message = "Напоминаем, что у вас есть неоплаченный счет. Пожалуйста, проверьте ваш Kaspi Bank.";
+                    wappiService.sendMessage(phone, message);
+                    Log.d("KaspiBusinessTest", "Напоминание отправлено на номер: " + phone);
+                }
+            } else {
+                // Если счет не был отправлен, отправляем его
+                try {
+                    pressTabButton();
+                    enterPrice(TRANSACTION_AMOUNT); // Используем константу для цены
+                    enterPhoneNumber(appointment.getClient().getPhone());
 
-        // Собираем информацию из истории транзакций и записываем в базу данных
-        navigateToHistoryTab();
-        List<String> extractedMessageIds = extractMessageIds();
-        for (String messageId : extractedMessageIds) {
-            // Сохраняем messageId в Supabase
-            supabaseService.addMessageId(messageId);
-            Log.d("KaspiBusinessTest", "Message ID сохранен в базе данных: " + messageId);
+                    // Вставляем ID записи в поле комментария
+                    enterComment("ID записи: " + appointment.getId());
+
+                    clickSendButton();
+                    clickCloseButton();
+
+                    // Сохраняем информацию о транзакции в Supabase
+                    supabaseService.addProcessedAppointment(appointment.getId(),
+                            System.currentTimeMillis());
+                    Log.d("KaspiBusinessTest",
+                            "Счет отправлен на номер: " + appointment.getClient().getPhone());
+                } catch (Exception e) {
+                    Log.e("KaspiBusinessTest", "Ошибка при обработке транзакции: " + e.getMessage());
+                    fail("Тест завершился с ошибкой: " + e.getMessage());
+                }
+            }
         }
     }
 
     private List<Appointment> filterByDate(List<Appointment> appointments, Context context) {
-        SupabaseService supabaseService = new SupabaseService();
         List<Appointment> filteredAppointments = new ArrayList<>();
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
 
@@ -180,49 +173,40 @@ public class KaspiBusinessTest {
         TimeZone timeZone = TimeZone.getTimeZone("Asia/Oral");
         dateFormat.setTimeZone(timeZone);
 
-        long now = System.currentTimeMillis() + timeZone.getRawOffset();
+        long now = System.currentTimeMillis();
         long twentyFourHoursInMillis = TimeUnit.HOURS.toMillis(24);
         long maxTime = now + twentyFourHoursInMillis;
 
-        
-        for (Appointment appointment : appointments) {            
-            // Проверяем, была ли запись уже обработана
-            supabaseService.isAppointmentProcessed(appointment.getId(),
-                    new SupabaseService.SupabaseCallback<Boolean>() {
-                        @Override
-                        public void onResult(Boolean isProcessed) {
-                            Log.d("KaspiBusinessTest", "❌❌❌❌❌❌");
+        for (Appointment appointment : appointments) {
+            try {
+                // Синхронная проверка, была ли запись уже обработана
+                boolean isProcessed = supabaseService.isAppointmentProcessedSync(appointment.getId());
 
-                            if (isProcessed) {
-                                Log.d("KaspiBusinessTest", "❌ Пропущено (уже обработано): ID=" + appointment.getId());
-                                return;
-                            }
+                if (isProcessed) {
+                    Log.d("KaspiBusinessTest", "❌ Пропущено (уже обработано): ID=" + appointment.getId());
+                    continue; // Пропускаем уже обработанные записи
+                }
 
+                Date appointmentDate = dateFormat.parse(appointment.getDate());
+                if (appointmentDate != null) {
+                    long appointmentTime = appointmentDate.getTime();
 
-                            try {
-                                Date appointmentDate = dateFormat.parse(appointment.getDate());
-                                if (appointmentDate != null) {
-                                    long appointmentTime = appointmentDate.getTime();
+                    // Проверяем, что запись находится в пределах 24 часов от текущего времени
+                    if (appointmentTime >= now && appointmentTime <= maxTime) {
+                        Log.d("KaspiBusinessTest", "✅ Запись добавлена: ID=" + appointment.getId());
+                        filteredAppointments.add(appointment);
 
-                                    if (appointmentTime >= now && appointmentTime <= maxTime) {
-                                        Log.d("KaspiBusinessTest", "✅ Запись добавлена: ID=" + appointment.getId());
-                                        filteredAppointments.add(appointment);
-
-                                        // Добавляем запись в Supabase
-                                        supabaseService.addProcessedAppointment(appointment.getId(),
-                                                System.currentTimeMillis());
-                                    } else {
-                                        Log.d("KaspiBusinessTest",
-                                                "❌ Пропущено (не в пределах 24 часов): ID=" + appointment.getId());
-                                    }
-                                } else {
-                                    Log.d("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId());
-                                }
-                            } catch (ParseException e) {
-                                Log.e("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId(), e);
-                            }
-                        }
-                    });
+                        // Добавляем запись в Supabase
+                        supabaseService.addProcessedAppointment(appointment.getId(), System.currentTimeMillis());
+                    } else {
+                        Log.d("KaspiBusinessTest", "❌ Пропущено (не в пределах 24 часов): ID=" + appointment.getId());
+                    }
+                } else {
+                    Log.d("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId());
+                }
+            } catch (ParseException e) {
+                Log.e("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId(), e);
+            }
         }
 
         Log.d("KaspiBusinessTest",
@@ -298,13 +282,15 @@ public class KaspiBusinessTest {
         List<Appointment> filteredAppointments = new ArrayList<>();
         for (Appointment appointment : appointments) {
             String phone = appointment.getClient().getPhone();
-            // Log.d("KaspiBusinessTest", "Checking phone: " + phone); // Log the phone being checked
+            // Log.d("KaspiBusinessTest", "Checking phone: " + phone); // Log the phone
+            // being checked
 
             if (allowedPhones.contains(phone)) {
                 Log.d("KaspiBusinessTest", "Phone allowed: " + phone); // Log the phone if it's allowed
                 filteredAppointments.add(appointment);
             } else {
-                // Log.d("KaspiBusinessTest", "Phone not allowed: " + phone); // Log the phone if it's not allowed
+                // Log.d("KaspiBusinessTest", "Phone not allowed: " + phone); // Log the phone
+                // if it's not allowed
             }
         }
         return filteredAppointments;
@@ -338,43 +324,24 @@ public class KaspiBusinessTest {
         sleep(2000);
     }
 
+    private void enterComment(String comment) {
+        device.findObject(By.res(APP_PACKAGE, "editText")).setText(comment);
+        sleep(2000);
+    }
+
     private void clickSendButton() {
+        // Получаем текущий ID записи
+        int appointmentId = getCurrentAppointmentId();
+
+        // Нажимаем кнопку отправки
         device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
         sleep(3500);
 
         // Сохраняем время отправки счета
         long currentTime = System.currentTimeMillis();
-        int appointmentId = getCurrentAppointmentId(); // Предположим, что у вас есть метод для получения ID текущего
-                                                       // appointment
         AppointmentRepository repository = new AppointmentRepository(
                 InstrumentationRegistry.getInstrumentation().getTargetContext());
         repository.addProcessedAppointment(appointmentId, currentTime);
-
-        // Отправка сообщения через Wappi через 10 часов
-        scheduleWappiMessage(appointmentId, device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).getText());
-    }
-
-    private void scheduleWappiMessage(int appointmentId, String phone) {
-        new Thread(() -> {
-            try {
-                // Ждем 10 часов
-                Thread.sleep(TimeUnit.HOURS.toMillis(10));
-
-                // Проверяем, прошло ли 10 часов с момента отправки счета
-                AppointmentRepository repository = new AppointmentRepository(
-                        InstrumentationRegistry.getInstrumentation().getTargetContext());
-                long timestamp = repository.getAppointmentTimestamp(appointmentId);
-
-                if (timestamp != -1 && System.currentTimeMillis() - timestamp >= TimeUnit.HOURS.toMillis(10)) {
-                    // Отправляем сообщение через Wappi
-                    WappiService wappiService = new WappiService();
-                    String message = "Напоминаем, что у вас есть неоплаченный счет. Пожалуйста, проверьте ваш Kaspi Bank.";
-                    wappiService.sendMessage(phone, message);
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
     }
 
     private int getCurrentAppointmentId() {
@@ -410,10 +377,10 @@ public class KaspiBusinessTest {
 
                     // Log details of each fetched record
                     // for (Appointment appointment : appointments) {
-                    //     Log.d("KaspiBusinessTest", "Fetched Record - ID: " + appointment.getId() +
-                    //             ", Client Name: " + appointment.getClient().getName() +
-                    //             ", Phone: " + appointment.getClient().getPhone() +
-                    //             ", Datetime: " + appointment.getDate());
+                    // Log.d("KaspiBusinessTest", "Fetched Record - ID: " + appointment.getId() +
+                    // ", Client Name: " + appointment.getClient().getName() +
+                    // ", Phone: " + appointment.getClient().getPhone() +
+                    // ", Datetime: " + appointment.getDate());
                     // }
                 } else {
                     Log.e("KaspiBusinessTest", "Ошибка запроса: " + response.code());

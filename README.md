@@ -58,3 +58,16 @@ sudo apt-get install -y qemu-user-static
 ```sh
 * * * * * /bin/bash -c '/usr/local/bin/adb shell am instrument -w -r -e debug false -e class "hehe.miras.kaspibusinesstest.KaspiBusinessTest" hehe.miras.kaspibusinesstest.test/androidx.test.runner.AndroidJUnitRunner' >> ~/adb_cron.log 2>&1
 ```
+
+## Extract XML from screen
+```sh
+adb shell uiautomator dump
+adb pull /sdcard/window_dump.xml
+```
+
+## Appium capabilities
+```json
+{
+  
+}
+```
