@@ -8,6 +8,7 @@ import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.Until;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.UiObject;
+import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.UiSelector;
 
 import org.junit.Before;
@@ -43,10 +44,14 @@ public class KaspiBusinessTest {
 
     private UiDevice device;
     private static final String APP_PACKAGE = "hr.asseco.android.kaspibusiness";
+    private static final String MAIN_ACTIVITY = "kz.kaspibusiness.view.ui.auth.splash.SplashActivity";
     private static final int LAUNCH_TIMEOUT = 30000;
+    private static final String TAG = "KaspiBusinessTest";
+    private static final String MESSAGE_ID_TAG = "MessageIdExtractor";
 
     private List<Appointment> appointments; // Список записей из Altegio
     private List<String> allowedPhones = new ArrayList<>(); // Массив разрешенных номеров телефонов
+    private List<String> extractedMessageIds = new ArrayList<>(); // List to store extracted message IDs
 
     @Before
     public void setUp() {
@@ -62,7 +67,7 @@ public class KaspiBusinessTest {
         fetchAppointments();
 
         // Запуск приложения Kaspi Business
-        String command = "am start -n hr.asseco.android.kaspibusiness/kz.kaspibusiness.view.ui.auth.splash.SplashActivity";
+        String command = "am start -n " + APP_PACKAGE + "/" + MAIN_ACTIVITY;
         try {
             device.executeShellCommand(command);
         } catch (Exception e) {
@@ -74,20 +79,19 @@ public class KaspiBusinessTest {
     }
 
     @Test
-    public void testTransactionFlow() {
+    public void testTransactionFlowAndExtractMessageIds() {
         assertNotNull("Приложение не запустилось", device.findObject(By.pkg(APP_PACKAGE)));
 
+        // Step 1: Process transactions from appointments
         if (appointments != null && !appointments.isEmpty()) {
-            // Фильтруем записи по разрешенным номерам телефонов
             List<Appointment> filteredAppointments = filterByDate(
                     filterAppointmentsByAllowedPhones(appointments),
                     InstrumentationRegistry.getInstrumentation().getTargetContext());
 
             if (!filteredAppointments.isEmpty()) {
-                Log.d("KaspiBusinessTest", "Filtered appointments count: " + filteredAppointments.size());
+                Log.d(TAG, "Filtered appointments count: " + filteredAppointments.size());
                 for (Appointment appointment : filteredAppointments) {
-                    Log.d("KaspiBusinessTest",
-                            "Processing appointment with phone: " + appointment.getClient().getPhone());
+                    Log.d(TAG, "Processing appointment with phone: " + appointment.getClient().getPhone());
                     // wait for the app to load
                     device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
@@ -98,11 +102,86 @@ public class KaspiBusinessTest {
                     clickCloseButton();
                 }
             } else {
-                Log.e("KaspiBusinessTest", "Нет записей с разрешенными номерами телефонов, тест не выполняется.");
+                Log.e(TAG, "Нет записей с разрешенными номерами телефонов, тест не выполняется.");
             }
         } else {
-            Log.e("KaspiBusinessTest", "Нет записей из Altegio, тест не выполняется.");
+            Log.e(TAG, "Нет записей из Altegio, тест не выполняется.");
         }
+        // Step 2: After processing all payments, navigate to History tab and extract
+        // message IDs
+        Log.d(MESSAGE_ID_TAG, "Navigating to History tab to extract message IDs");
+        navigateToHistoryTab();
+        extractedMessageIds = extractMessageIds();
+
+        // Print the extracted message IDs
+        Log.d(MESSAGE_ID_TAG, "Extracted Message IDs:");
+        for (String id : extractedMessageIds) {
+            Log.d(MESSAGE_ID_TAG, "Message ID: " + id);
+        }
+    }
+
+    /**
+     * Navigate to the History tab if not already there
+     */
+    private void navigateToHistoryTab() {
+        Log.d(MESSAGE_ID_TAG, "Navigating to History tab");
+
+        // Check if we're already on the History tab
+        UiObject2 historyTab = device.findObject(
+                By.res(APP_PACKAGE, "historyFragment"));
+
+        if (historyTab != null) {
+            if (!isSelected(historyTab)) {
+                Log.d(MESSAGE_ID_TAG, "Clicking History tab");
+                historyTab.click();
+                sleep(2000); // Wait for UI to update
+            } else {
+                Log.d(MESSAGE_ID_TAG, "Already on History tab");
+            }
+        } else {
+            Log.e(MESSAGE_ID_TAG, "Could not find History tab");
+        }
+    }
+
+    /**
+     * Extract message IDs from the history list
+     * 
+     * @return List of message IDs
+     */
+    private List<String> extractMessageIds() {
+        List<String> messageIds = new ArrayList<>();
+
+        Log.d(MESSAGE_ID_TAG, "Extracting message IDs");
+
+        // Find the recyclerview containing history items
+        UiObject2 historyList = device.findObject(By.res(APP_PACKAGE, "remoteRV"));
+
+        if (historyList != null) {
+            Log.d(MESSAGE_ID_TAG, "Found history list");
+
+            // Find all elements with comment resource ID
+            List<UiObject2> commentElements = device.findObjects(By.res(APP_PACKAGE, "comment"));
+            Log.d(MESSAGE_ID_TAG, "Found " + commentElements.size() + " comment elements");
+
+            // Extract text from each comment element
+            for (UiObject2 comment : commentElements) {
+                String messageId = comment.getText();
+                messageIds.add(messageId);
+                Log.d(MESSAGE_ID_TAG, "Found message ID: " + messageId);
+            }
+        } else {
+            Log.e(MESSAGE_ID_TAG, "Could not find history list");
+        }
+
+        return messageIds;
+    }
+
+    /**
+     * Helper method to check if a UI element is selected
+     */
+    private boolean isSelected(UiObject2 element) {
+        Boolean selected = element.isSelected();
+        return selected != null && selected;
     }
 
     private List<Appointment> filterByDate(List<Appointment> appointments, Context context) {
