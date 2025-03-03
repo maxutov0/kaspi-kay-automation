@@ -22,11 +22,11 @@ function run_tests() {
     echo "Starting instrumentation tests..."
     adb shell am instrument -w -r -e debug false -e class "hehe.miras.kaspibusinesstest.KaspiBusinessTest" hehe.miras.kaspibusinesstest.test/androidx.test.runner.AndroidJUnitRunner &
 
-    # Запускает логи в реальном времени
+    # Запускает логи в реальном времени в фоновом режиме
     echo "Starting logcat in real-time..."
     adb logcat -c  # Очищает старые логи
-    adb logcat | grep -E "KaspiBusinessTest|AndroidJUnitRunner"  # Фильтрует логи по тегам
-
+    adb logcat | grep -E "KaspiBusinessTest|AndroidJUnitRunner" &
+    LOGCAT_PID=$!  # Сохраняем PID процесса logcat
 }
 
 # Основной цикл
@@ -36,6 +36,9 @@ while true; do
     # Ожидание ввода пользователя
     echo "Press 'R' to restart the script or any other key to exit..."
     read -n 1 input
+
+    # Останавливаем logcat перед перезапуском
+    kill $LOGCAT_PID 2>/dev/null || true
 
     if [[ "$input" != "r" && "$input" != "R" ]]; then
         break
