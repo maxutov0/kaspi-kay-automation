@@ -7,7 +7,18 @@ public class Appointment {
     private int id;
     private String date;
     private Client client;
-    public String status = null;
+    private String status;
+    private String phone;
+    private String createdAt;
+
+    public Appointment(int id, String date, Client client, String status, String phone, String createdAt) {
+        this.id = id;
+        this.date = date;
+        this.client = client;
+        this.status = status;
+        this.phone = phone;
+        this.createdAt = createdAt;
+    }
 
     public int getId() {
         return id;
@@ -19,6 +30,18 @@ public class Appointment {
 
     public Client getClient() {
         return client != null ? client : new Client();
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
     }
 
     public static class Client {

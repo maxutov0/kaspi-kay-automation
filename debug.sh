@@ -26,6 +26,7 @@ function run_tests() {
     echo "Starting logcat in real-time..."
     adb logcat -c  # Очищает старые логи
     adb logcat | grep -E "KaspiBusinessTest|AndroidJUnitRunner"  # Фильтрует логи по тегам
+
 }
 
 # Основной цикл

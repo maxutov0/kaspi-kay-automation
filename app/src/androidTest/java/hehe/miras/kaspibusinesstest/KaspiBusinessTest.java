@@ -30,9 +30,11 @@ import hehe.miras.kaspibusinesstest.api.AltegioApi;
 import hehe.miras.kaspibusinesstest.model.Appointment;
 import hehe.miras.kaspibusinesstest.service.AltegioService;
 
+import java.net.URLEncoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -63,8 +65,9 @@ public class KaspiBusinessTest {
     private AltegioService altegioService;
 
     private List<Appointment> appointments;
-    
-    private List<String> allowedPhones = new ArrayList<>(Arrays.asList("77753251368", "77477898496", "77471022106", "77058805927"));
+
+    private List<String> allowedPhones = new ArrayList<>(
+            Arrays.asList("77753251368", "77477898496", "77471022106", "77058805927"));
 
     @Before
     public void setUp() {
@@ -77,7 +80,7 @@ public class KaspiBusinessTest {
 
         // Запуск приложения Kaspi Pay
         String command = "am start -n " + APP_PACKAGE + "/" + MAIN_ACTIVITY;
-        
+
         try {
             device.executeShellCommand(command);
         } catch (Throwable e) {
@@ -96,10 +99,10 @@ public class KaspiBusinessTest {
         // syncSentInvoices();
 
         // Отправляем счета или напоминания
-        sendInvoices();
+        // sendInvoices();
 
         // Отправляем напоминания
-        // sendReminders();
+        sendReminders();
 
         Log.d(TAG, "Тест завершен");
     }
@@ -130,7 +133,7 @@ public class KaspiBusinessTest {
             Log.d(TAG, "Нет записей из Altegio");
             return;
         }
-        
+
         Log.d(TAG, "Получено записей из Altegio: " + appointments.size());
 
         // Фильтруем записи по разрешенным номерам телефонов
@@ -144,7 +147,7 @@ public class KaspiBusinessTest {
             if (!allowedPhones.contains(phone)) {
                 continue;
             }
-            
+
             Log.d(TAG, "Телефон клиента " + phone + " разрешен");
             filteredAppointments.add(appointment);
         }
@@ -171,7 +174,7 @@ public class KaspiBusinessTest {
                     if (appointmentTime >= now && appointmentTime <= maxTime) {
                         Log.d(TAG, "Запись " + appointment.getId() + " в пределах 24 часов");
                         continue;
-                    } 
+                    }
                 } else {
                 }
             } catch (Throwable e) {
@@ -185,18 +188,21 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Фильтрация записей по статусу из Supabase");
         for (Appointment appointment : filteredAppointments) {
             try {
-                List<Object> supabaseAppointment = supabaseService.getAppointmentSync(appointment);
+                String altegioIdParam = "eq." + appointment.getId(); // Формируем параметр для altegio_id
 
-                // Log.d(TAG, "Запись " + appointment.getId() + " из Supabase: " + supabaseAppointment);
+                List<Appointment> supabaseAppointments = supabaseService.getAppointmentsSync(altegioIdParam, null, null,
+                        null);
 
-                if (supabaseAppointment != null) {
+                // Log.d(TAG, "Запись " + appointment.getId() + " из Supabase: " +
+                // supabaseAppointment);
+
+                if (supabaseAppointments != null) {
                     filteredAppointments.remove(appointment);
                     Log.d(TAG, "Счет " + appointment.getId() + " уже отправлен");
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Ошибка при получении записи из Supabase для записи " + appointment.getId(), e);
                 filteredAppointments.remove(appointment);
-                continue;
             }
         }
 
@@ -216,9 +222,48 @@ public class KaspiBusinessTest {
         }
     }
 
-    public void sendReminders()
-    {
+    public void sendReminders() {
 
+        // Получаем записи из Supabase
+        List<Appointment> appointmentsWithInvoices = new ArrayList<>();
+        try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            dateFormat.setTimeZone(TimeZone.getTimeZone("UTC")); // Устанавливаем часовой пояс UTC
+            long now = System.currentTimeMillis();
+            long tenHoursInMillis = TimeUnit.HOURS.toMillis(10);
+            long minTime = now - tenHoursInMillis;
+            Date date = new Date(minTime);
+
+            String createdAtParam = "gt." + dateFormat.format(date).replace(" ", "+"); // Формируем параметр для
+            String statusParam = "eq.invoice_sent"; // Формируем параметр для status
+            String orderByParam = "id.desc"; // Формируем параметр для order
+
+            Log.d(TAG, "Получение записей из Supabase");
+            appointmentsWithInvoices = supabaseService.getAppointmentsSync(null, createdAtParam, statusParam,
+                    orderByParam);
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка при получении записей из Supabase", e);
+        }
+
+        Log.d(TAG, "Получено записей из Supabase: " + appointmentsWithInvoices.size());
+
+        Log.d(TAG, "Записи из Supabase: " + appointmentsWithInvoices);
+
+        // Проверяем, есть ли записи для отправки напоминаний
+        // if (appointments == null || appointments.isEmpty()) {
+        // Log.d(TAG, "Нет записей для отправки напоминаний");
+        // return;
+        // }
+
+        // Отправляем напоминания
+        // for (Appointment appointment : appointments) {
+        // try {
+        // sendReminder(appointment);
+        // } catch (Throwable e) {
+        // Log.e(TAG, "Ошибка при отправке напоминания для записи " +
+        // appointment.getId(), e);
+        // }
+        // }
     }
 
     public void sendInvoice(Appointment appointment) {
@@ -233,7 +278,8 @@ public class KaspiBusinessTest {
         device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
         sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
+        // device.findObject(By.res(APP_PACKAGE,
+        // "phoneNumberEt")).setText(appointment.getClient().getPhone());
         device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText("77477898496");
         sleep(1000);
 
@@ -257,7 +303,16 @@ public class KaspiBusinessTest {
     }
 
     public void sendReminder(Appointment appointment) {
+        Log.d(TAG, "Отправка напоминания для записи " + appointment.getId());
 
+        // Формируем текст напоминания
+        // String message = "Уважаемый клиент, напоминаем Вам о неоплаченном счете " +
+        // appointment.getId();
+
+        // Отправляем напоминание через Wappi
+        // wappiService.sendSmsSync(appointment.getClient().getPhone(), message);
+
+        Log.d(TAG, "Напоминание отправлено для записи " + appointment.getId());
     }
 
     private void sleep(int millis) {

@@ -11,6 +11,7 @@ import retrofit2.http.POST;
 import retrofit2.http.Query;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -45,16 +46,33 @@ public class SupabaseService {
         }
     }
 
-    // Получение записи из Supabase
-    public List<Object> getAppointmentSync(Appointment appointment) throws IOException {
-        String filter = "eq." + appointment.getId();
-    
-        Response<List<Object>> response = api.getAppointment(filter, SUPABASE_KEY).execute();
+    public List<Appointment> getAppointmentsSync(String altegioId, String createdAt, String status, String orderBy)
+            throws IOException {
+        Response<List<Object>> response = api.getAppointment(altegioId, createdAt, status, orderBy, SUPABASE_KEY)
+                .execute();
 
-        if (response.isSuccessful() && response.body() != null) {
-            return response.body();
+        if (!response.isSuccessful()) {
+            throw new IOException("Failed to get appointments: " + response.errorBody().string());
         }
 
-        return null;
+        List<Appointment> appointments = new ArrayList<>();
+
+        Log.d("KaspiBusinessTest", "Response: " + response.body());
+
+        for (Object obj : response.body()) {
+            Map<String, Object> map = (Map<String, Object>) obj;
+            double altegioIdDouble = (Double) map.get("altegio_id"); // Получаем значение как Double
+            int id = (int) altegioIdDouble; // Преобразуем Double в int
+
+            appointments.add(new Appointment(
+                    id, // Используем преобразованное значение
+                    null,
+                    null,
+                    (String) map.get("status"),
+                    (String) map.get("phone"),
+                    (String) map.get("created_at")));
+        }
+
+        return appointments;
     }
 }

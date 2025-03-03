@@ -17,7 +17,9 @@ public interface SupabaseApi {
 
         @GET("appointments")
         Call<List<Object>> getAppointment(
-                        @Query("altegio_id") String filter,
-                        @Query("apikey") String apiKey
-        );
+                        @Query("altegio_id") String altegioId, // Передаем как строку
+                        @Query("created_at") String createdAt, // Передаем как строку
+                        @Query("status") String status, // Передаем как строку
+                        @Query("order") String orderBy, // Передаем как строку
+                        @Query("apikey") String apiKey);
 }
