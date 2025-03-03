@@ -16,5 +16,8 @@ public interface SupabaseApi {
         Call<Void> insertAppointment(@Body Map<String, Object> data, @Query("apikey") String apiKey);
 
         @GET("appointments")
-        Call<Map<String, Object>> getAppointment(@Query("id") int appointmentId, @Query("apikey") String apiKey);
+        Call<List<Object>> getAppointment(
+                        @Query("altegio_id") String filter,
+                        @Query("apikey") String apiKey
+        );
 }

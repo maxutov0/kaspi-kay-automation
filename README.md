@@ -71,3 +71,6 @@ adb pull /sdcard/window_dump.xml
   
 }
 ```
+
+## Supabase
+- check RLS

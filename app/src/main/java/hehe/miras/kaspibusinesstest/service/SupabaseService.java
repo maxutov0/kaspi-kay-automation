@@ -13,6 +13,7 @@ import retrofit2.http.Query;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 import hehe.miras.kaspibusinesstest.api.SupabaseApi;
 import hehe.miras.kaspibusinesstest.model.Appointment;
@@ -38,13 +39,17 @@ public class SupabaseService {
         data.put("altegio_id", appointment.getId());
 
         Response<Void> response = api.insertAppointment(data, SUPABASE_KEY).execute();
+
+        if (!response.isSuccessful()) {
+            throw new IOException("Failed to insert appointment: " + response.errorBody().string());
+        }
     }
 
     // Получение записи из Supabase
-    public Map<String, Object> getAppointmentSync(int appointmentId) throws IOException {
-        Call<Map<String, Object>> call = api.getAppointment(appointmentId, SUPABASE_KEY);
-
-        Response<Map<String, Object>> response = call.execute();
+    public List<Object> getAppointmentSync(Appointment appointment) throws IOException {
+        String filter = "eq." + appointment.getId();
+    
+        Response<List<Object>> response = api.getAppointment(filter, SUPABASE_KEY).execute();
 
         if (response.isSuccessful() && response.body() != null) {
             return response.body();

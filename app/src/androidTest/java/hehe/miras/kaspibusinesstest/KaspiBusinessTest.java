@@ -34,6 +34,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.TimeZone;
 
@@ -117,6 +118,7 @@ public class KaspiBusinessTest {
     public void sendInvoices() {
         Log.d(TAG, "Отправка счетов");
 
+        Log.d(TAG, "Получение записей из Altegio");
         try {
             appointments = altegioService.fetchAppointmentsSync();
         } catch (Exception e) {
@@ -128,18 +130,23 @@ public class KaspiBusinessTest {
             Log.d(TAG, "Нет записей из Altegio");
             return;
         }
+        
+        Log.d(TAG, "Получено записей из Altegio: " + appointments.size());
 
         // Фильтруем записи по разрешенным номерам телефонов
         Log.d(TAG, "Фильтрация записей по разрешенным номерам телефонов");
-
+        Log.d(TAG, "Разрешенные номера телефонов: " + allowedPhones);
         List<Appointment> filteredAppointments = new ArrayList<>();
 
         for (Appointment appointment : appointments) {
             String phone = appointment.getClient().getPhone();
 
-            if (allowedPhones.contains(phone)) {
-                filteredAppointments.add(appointment);
+            if (!allowedPhones.contains(phone)) {
+                continue;
             }
+            
+            Log.d(TAG, "Телефон клиента " + phone + " разрешен");
+            filteredAppointments.add(appointment);
         }
 
         // Фильтруем записи по дате
@@ -150,7 +157,7 @@ public class KaspiBusinessTest {
         TimeZone timeZone = TimeZone.getTimeZone("Asia/Oral");
         dateFormat.setTimeZone(timeZone);
 
-        long now = System.currentTimeMillis();
+        long now = System.currentTimeMillis() - timeZone.getRawOffset();
         long twentyFourHoursInMillis = TimeUnit.HOURS.toMillis(24);
         long maxTime = now + twentyFourHoursInMillis;
 
@@ -162,6 +169,7 @@ public class KaspiBusinessTest {
 
                     // Проверяем, что запись находится в пределах 24 часов от текущего времени
                     if (appointmentTime >= now && appointmentTime <= maxTime) {
+                        Log.d(TAG, "Запись " + appointment.getId() + " в пределах 24 часов");
                         continue;
                     } 
                 } else {
@@ -177,13 +185,17 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Фильтрация записей по статусу из Supabase");
         for (Appointment appointment : filteredAppointments) {
             try {
-                Object supabaseAppointment = supabaseService.getAppointmentSync(appointment.getId());
-                
+                List<Object> supabaseAppointment = supabaseService.getAppointmentSync(appointment);
+
+                // Log.d(TAG, "Запись " + appointment.getId() + " из Supabase: " + supabaseAppointment);
+
                 if (supabaseAppointment != null) {
                     filteredAppointments.remove(appointment);
+                    Log.d(TAG, "Счет " + appointment.getId() + " уже отправлен");
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Ошибка при получении записи из Supabase для записи " + appointment.getId(), e);
+                filteredAppointments.remove(appointment);
                 continue;
             }
         }
@@ -212,27 +224,27 @@ public class KaspiBusinessTest {
     public void sendInvoice(Appointment appointment) {
         Log.d(TAG, "Отправка счета для записи " + appointment.getId());
 
-        // // Ждем загрузки приложения
-        // device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
+        // Ждем загрузки приложения
+        device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
-        // device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
+        sleep(1000);
 
-        // // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
-        // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText("77477898496");
-        // sleep(1000);
+        // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
+        device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText("77477898496");
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
-        // sleep(3500);
+        device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
+        sleep(3500);
 
-        // device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
+        sleep(1000);
 
         // Сохраняем запись в Supabase
         try {
