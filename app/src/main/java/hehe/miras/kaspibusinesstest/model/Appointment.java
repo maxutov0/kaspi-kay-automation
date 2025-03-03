@@ -64,4 +64,10 @@ public class Appointment {
             return name;
         }
     }
+
+    // to string
+    public String toString()
+    {
+        return "id: " + id + ", date: " + date + ", client: " + client + ", status: " + status + ", phone: " + phone + ", name: " + name + ", createdAt: " + createdAt;
+    }
 }

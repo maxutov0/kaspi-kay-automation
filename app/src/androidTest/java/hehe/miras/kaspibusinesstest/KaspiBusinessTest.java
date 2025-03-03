@@ -100,7 +100,7 @@ public class KaspiBusinessTest {
         // syncSentInvoices();
 
         // Отправляем счета или напоминания
-        // sendInvoices();
+        sendInvoices();
 
         // Отправляем напоминания
         sendReminders();
@@ -109,14 +109,15 @@ public class KaspiBusinessTest {
     }
 
     public void syncSentInvoices() {
-        device.wait(Until.hasObject(By.res(APP_PACKAGE, "historyFragment")), LAUNCH_TIMEOUT);
-        sleep(1000);
+        Log.d(TAG, "Сбор истории");
 
-        device.findObject(By.res(APP_PACKAGE, "historyFragment")).click();
-        sleep(1000);
+        // device.wait(Until.hasObject(By.res(APP_PACKAGE, "historyFragment")), LAUNCH_TIMEOUT);
+        // sleep(1000);
+
+        // device.findObject(By.res(APP_PACKAGE, "historyFragment")).click();
+        // sleep(1000);
 
         // Получаем список всех счетов
-
     }
 
     public void sendInvoices() {
@@ -191,16 +192,15 @@ public class KaspiBusinessTest {
             try {
                 String altegioIdParam = "eq." + appointment.getId(); // Формируем параметр для altegio_id
 
-                List<Appointment> supabaseAppointments = supabaseService.getAppointmentsSync(altegioIdParam, null, null,
-                        null);
+                List<Appointment> supabaseAppointments = supabaseService.getAppointmentsSync(altegioIdParam, null, null, null);
 
-                // Log.d(TAG, "Запись " + appointment.getId() + " из Supabase: " +
-                // supabaseAppointment);
-
-                if (supabaseAppointments != null) {
-                    filteredAppointments.remove(appointment);
-                    Log.d(TAG, "Счет " + appointment.getId() + " уже отправлен");
+                if (supabaseAppointments.isEmpty()) {
+                    Log.d(TAG, "Запись в Supabase не найдена");
+                    continue;
                 }
+
+                Log.d(TAG, "Счет " + appointment.getId() + " уже отправлен");
+                filteredAppointments.remove(appointment);
             } catch (Exception e) {
                 Log.e(TAG, "Ошибка при получении записи из Supabase для записи " + appointment.getId(), e);
                 filteredAppointments.remove(appointment);
@@ -238,7 +238,7 @@ public class KaspiBusinessTest {
             long minTime = now - tenHoursInMillis;
             Date date = new Date(minTime);
 
-            String createdAtParam = "gt." + dateFormat.format(date).replace(" ", "+"); // Формируем параметр для
+            String createdAtParam = "lte." + dateFormat.format(date).replace(" ", "+"); // Формируем параметр для
             String statusParam = "eq.invoice_sent"; // Формируем параметр для status
             String orderByParam = "id.desc"; // Формируем параметр для order
 
@@ -307,9 +307,9 @@ public class KaspiBusinessTest {
 
         // Формируем текст напоминания
         String message = "Уважаемый, " + appointment.getName() +
-                        "\n\n\r С момента выставления предоплаты прошло 10 часов. Просим вас оплатить услугу в ближайшее время." + 
-                        "\n\n\r В случае отсутствия оплаты ваша бронь будет аннулирована." +
-                        "\n\n\r С уважением, \n\rКлиника “Darmed”";
+                        "\n\n\rС момента выставления предоплаты прошло 10 часов. Просим вас оплатить услугу в ближайшее время." + 
+                        "\n\n\rВ случае отсутствия оплаты ваша бронь будет аннулирована." +
+                        "\n\n\rС уважением, \n\rКлиника “Darmed”";
 
         // Отправляем напоминание через Wappi
         try {
