@@ -33,3 +33,12 @@ window_dump.xml
 local.properties
 
 .env
+
+debug.log
+
+.zip
+.apk
+
+.idea
+.kotlin
+.yarn

@@ -38,8 +38,10 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.TimeZone;
+import java.util.HashSet;
 
 import android.content.Context;
 
@@ -50,6 +52,9 @@ import hehe.miras.kaspibusinesstest.service.AltegioService;
 import static org.junit.Assert.fail;
 
 import androidx.test.uiautomator.BySelector;
+
+import androidx.test.uiautomator.UiScrollable;
+import androidx.test.uiautomator.Direction;
 
 @RunWith(AndroidJUnit4.class)
 public class KaspiBusinessTest {
@@ -97,13 +102,13 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Запуск теста");
 
         // Обновляем статусы выставленных счетов
-        // syncSentInvoices();
+        syncSentInvoices();
 
         // Отправляем счета или напоминания
-        sendInvoices();
+        // sendInvoices();
 
         // Отправляем напоминания
-        sendReminders();
+        // sendReminders();
 
         Log.d(TAG, "Тест завершен");
     }
@@ -111,13 +116,87 @@ public class KaspiBusinessTest {
     public void syncSentInvoices() {
         Log.d(TAG, "Сбор истории");
 
-        // device.wait(Until.hasObject(By.res(APP_PACKAGE, "historyFragment")), LAUNCH_TIMEOUT);
-        // sleep(1000);
+        // Ожидание появления фрагмента истории
+        device.wait(Until.hasObject(By.res(APP_PACKAGE, "historyFragment")), LAUNCH_TIMEOUT);
+        sleep(2000);
 
-        // device.findObject(By.res(APP_PACKAGE, "historyFragment")).click();
-        // sleep(1000);
+        // Переход на экран истории
+        device.findObject(By.res(APP_PACKAGE, "historyFragment")).click();
+        sleep(1000);
 
-        // Получаем список всех счетов
+        // Ожидание появления списка счетов
+        // androidx.recyclerview.widget.RecyclerView[@resource-id="hr.asseco.android.kaspibusiness:id/operationsRv"]//androidx.recyclerview.widget.RecyclerView[@resource-id="hr.asseco.android.kaspibusiness:id/operationsRv"]
+        device.wait(Until.hasObject(By.res(APP_PACKAGE, "operationsRv")), LAUNCH_TIMEOUT);
+        sleep(1000);
+
+        // Находим список счетов как UiScrollable
+        UiObject2 invoiceList = device.findObject(By.res(APP_PACKAGE, "operationsRv"));
+
+        int lastFoundCount = 0; // Хранит количество найденных элементов на предыдущей итерации
+        int unchangedCount = 0; // Счетчик для отслеживания, сколько раз количество не менялось
+
+        Set<String> invoicesIds = new HashSet<String>();
+
+        while (true) {
+            // Находим все элементы
+            List<UiObject2> items = device.findObjects(By.res(APP_PACKAGE, "sellerComment"));
+
+            Log.d(TAG, "Нашлось " + items.size() + " элементов");
+
+            // Если количество элементов не изменилось
+            if (items.size() == lastFoundCount) {
+                unchangedCount++; // Увеличиваем счетчик
+            } else {
+                unchangedCount = 0; // Сбрасываем счетчик, если количество изменилось
+            }
+
+            // Если количество не менялось 3 раза подряд, выходим из цикла
+            if (unchangedCount >= 3) {
+                // Log.d(TAG, "Количество счетов не менялось 3 раза подряд. Завершение.");
+                break;
+            }
+
+            // Обновляем lastFoundCount
+            lastFoundCount = items.size();
+
+            // Обрабатываем найденные элементы
+            for (UiObject2 item : items) {
+                invoicesIds.add(item.getText());
+            }
+
+            // Прокручиваем список вниз
+            invoiceList.scroll(Direction.DOWN, 10);
+            sleep(100); // Пауза для стабилизации списка
+        }
+
+        Log.d(TAG, "Найдено " + invoicesIds.size() + " счетов");
+
+        // Список для хранения данных о счетах
+        List<Appointment> appointments = new ArrayList<>();
+
+        for(String invoideId: invoicesIds) {
+            appointments.add(new Appointment(
+                Integer.parseInt(invoideId),
+                null,
+                null,
+                "paid",
+                null,
+                null,
+                null
+            ));
+        }
+
+        // Обновляем записи Supabase
+        for(Appointment appointment: appointments) {
+            try {
+                supabaseService.updateAppointmentSync(appointment.getId(), appointment.getStatus());
+                Log.d(TAG, "Запись в Supabase обновлен ID: " + appointment.getId()); 
+            } catch (Exception e) {
+                Log.e(TAG, "Ошибка при получении записи Supabase", e);
+            }
+        }
+
+        Log.d(TAG, "Завершено обновления базы данных Supabase");
     }
 
     public void sendInvoices() {
@@ -192,7 +271,8 @@ public class KaspiBusinessTest {
             try {
                 String altegioIdParam = "eq." + appointment.getId(); // Формируем параметр для altegio_id
 
-                List<Appointment> supabaseAppointments = supabaseService.getAppointmentsSync(altegioIdParam, null, null, null);
+                List<Appointment> supabaseAppointments = supabaseService.getAppointmentsSync(altegioIdParam, null, null,
+                        null);
 
                 if (supabaseAppointments.isEmpty()) {
                     Log.d(TAG, "Запись в Supabase не найдена");
@@ -307,9 +387,10 @@ public class KaspiBusinessTest {
 
         // Формируем текст напоминания
         String message = "Уважаемый, " + appointment.getName() +
-                        "\n\n\rС момента выставления предоплаты прошло 10 часов. Просим вас оплатить услугу в ближайшее время." + 
-                        "\n\n\rВ случае отсутствия оплаты ваша бронь будет аннулирована." +
-                        "\n\n\rС уважением, \n\rКлиника “Darmed”";
+                "\n\n\rС момента выставления предоплаты прошло 10 часов. Просим вас оплатить услугу в ближайшее время."
+                +
+                "\n\n\rВ случае отсутствия оплаты ваша бронь будет аннулирована." +
+                "\n\n\rС уважением, \n\rКлиника “Darmed”";
 
         // Отправляем напоминание через Wappi
         try {
