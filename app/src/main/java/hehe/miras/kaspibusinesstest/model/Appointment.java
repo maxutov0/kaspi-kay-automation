@@ -10,13 +10,15 @@ public class Appointment {
     private String status;
     private String phone;
     private String createdAt;
+    private String name;
 
-    public Appointment(int id, String date, Client client, String status, String phone, String createdAt) {
+    public Appointment(int id, String date, Client client, String status, String phone, String name, String createdAt) {
         this.id = id;
         this.date = date;
         this.client = client;
         this.status = status;
         this.phone = phone;
+        this.name = name;
         this.createdAt = createdAt;
     }
 
@@ -42,6 +44,11 @@ public class Appointment {
 
     public String getCreatedAt() {
         return createdAt;
+    }
+
+    public String getName()
+    {
+        return name;
     }
 
     public static class Client {

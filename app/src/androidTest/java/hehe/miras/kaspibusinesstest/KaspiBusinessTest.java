@@ -30,6 +30,7 @@ import hehe.miras.kaspibusinesstest.api.AltegioApi;
 import hehe.miras.kaspibusinesstest.model.Appointment;
 import hehe.miras.kaspibusinesstest.service.AltegioService;
 
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -225,7 +226,10 @@ public class KaspiBusinessTest {
     public void sendReminders() {
 
         // Получаем записи из Supabase
+        Log.d(TAG, "Получение записей из Supabase");
+
         List<Appointment> appointmentsWithInvoices = new ArrayList<>();
+
         try {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
             dateFormat.setTimeZone(TimeZone.getTimeZone("UTC")); // Устанавливаем часовой пояс UTC
@@ -238,7 +242,6 @@ public class KaspiBusinessTest {
             String statusParam = "eq.invoice_sent"; // Формируем параметр для status
             String orderByParam = "id.desc"; // Формируем параметр для order
 
-            Log.d(TAG, "Получение записей из Supabase");
             appointmentsWithInvoices = supabaseService.getAppointmentsSync(null, createdAtParam, statusParam,
                     orderByParam);
         } catch (Exception e) {
@@ -247,23 +250,22 @@ public class KaspiBusinessTest {
 
         Log.d(TAG, "Получено записей из Supabase: " + appointmentsWithInvoices.size());
 
-        Log.d(TAG, "Записи из Supabase: " + appointmentsWithInvoices);
-
         // Проверяем, есть ли записи для отправки напоминаний
-        // if (appointments == null || appointments.isEmpty()) {
-        // Log.d(TAG, "Нет записей для отправки напоминаний");
-        // return;
-        // }
+        if (appointmentsWithInvoices == null || appointmentsWithInvoices.isEmpty()) {
+            Log.d(TAG, "Нет записей для отправки напоминаний");
+            return;
+        }
 
         // Отправляем напоминания
-        // for (Appointment appointment : appointments) {
-        // try {
-        // sendReminder(appointment);
-        // } catch (Throwable e) {
-        // Log.e(TAG, "Ошибка при отправке напоминания для записи " +
-        // appointment.getId(), e);
-        // }
-        // }
+        Log.d(TAG, "Отправка напоминаний");
+        for (Appointment appointment : appointmentsWithInvoices) {
+            try {
+                sendReminder(appointment);
+            } catch (Throwable e) {
+                Log.e(TAG, "Ошибка при отправке напоминания для записи " +
+                        appointment.getId(), e);
+            }
+        }
     }
 
     public void sendInvoice(Appointment appointment) {
@@ -278,9 +280,7 @@ public class KaspiBusinessTest {
         device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
         sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE,
-        // "phoneNumberEt")).setText(appointment.getClient().getPhone());
-        device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText("77477898496");
+        device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
         sleep(1000);
 
         device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
@@ -306,13 +306,27 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Отправка напоминания для записи " + appointment.getId());
 
         // Формируем текст напоминания
-        // String message = "Уважаемый клиент, напоминаем Вам о неоплаченном счете " +
-        // appointment.getId();
+        String message = "Уважаемый, " + appointment.getName() +
+                        "\n\n\r С момента выставления предоплаты прошло 10 часов. Просим вас оплатить услугу в ближайшее время." + 
+                        "\n\n\r В случае отсутствия оплаты ваша бронь будет аннулирована." +
+                        "\n\n\r С уважением, \n\rКлиника “Darmed”";
 
         // Отправляем напоминание через Wappi
-        // wappiService.sendSmsSync(appointment.getClient().getPhone(), message);
+        try {
+            wappiService.sendMessageSync(appointment.getPhone(), message);
+            Log.d(TAG, "Напоминание отправлено для записи " + appointment.getId());
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при отправке напоминания через Wappi для записи " + appointment.getId(), e);
+            return;
+        }
 
-        Log.d(TAG, "Напоминание отправлено для записи " + appointment.getId());
+        // Обновляем статус записи в Supabase
+        try {
+            supabaseService.updateAppointmentSync(appointment.getId(), "reminder_sent");
+            Log.d(TAG, "Статус записи обновлен в Supabase для записи " + appointment.getId());
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при обновлении статуса записи в Supabase " + appointment.getId(), e);
+        }
     }
 
     private void sleep(int millis) {

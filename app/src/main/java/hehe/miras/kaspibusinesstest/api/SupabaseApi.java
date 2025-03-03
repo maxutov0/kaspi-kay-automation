@@ -10,6 +10,7 @@ import retrofit2.http.Header;
 import retrofit2.http.POST;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.PATCH;
 
 public interface SupabaseApi {
         @POST("appointments")
@@ -22,4 +23,11 @@ public interface SupabaseApi {
                         @Query("status") String status, // Передаем как строку
                         @Query("order") String orderBy, // Передаем как строку
                         @Query("apikey") String apiKey);
+
+        @PATCH("appointments")
+        Call<Void> updateAppointment(
+                        @Query("altegio_id") String altegioId, // Условие для поиска записи
+                        @Body Map<String, String> data, // Данные для обновления
+                        @Query("apikey") String apiKey // API-ключ
+        );
 }

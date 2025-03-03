@@ -38,6 +38,8 @@ public class SupabaseService {
     public void addAppointmentSync(Appointment appointment) throws IOException {
         Map<String, Object> data = new HashMap<>();
         data.put("altegio_id", appointment.getId());
+        data.put("phone", appointment.getClient().getPhone());
+        data.put("name", appointment.getClient().getName());
 
         Response<Void> response = api.insertAppointment(data, SUPABASE_KEY).execute();
 
@@ -57,8 +59,6 @@ public class SupabaseService {
 
         List<Appointment> appointments = new ArrayList<>();
 
-        Log.d("KaspiBusinessTest", "Response: " + response.body());
-
         for (Object obj : response.body()) {
             Map<String, Object> map = (Map<String, Object>) obj;
             double altegioIdDouble = (Double) map.get("altegio_id"); // Получаем значение как Double
@@ -70,9 +70,30 @@ public class SupabaseService {
                     null,
                     (String) map.get("status"),
                     (String) map.get("phone"),
-                    (String) map.get("created_at")));
+                    (String) map.get("name"),
+                    (String) map.get("created_at"))
+                    );
+                    
         }
 
         return appointments;
+    }
+
+    public void updateAppointmentSync(int altegioId, String status) throws IOException {
+        // Формируем тело запроса
+        Map<String, String> data = new HashMap<>();
+        data.put("status", status); // Новый статус
+
+        // Выполняем запрос на обновление
+        Response<Void> response = api.updateAppointment(
+                "eq." + altegioId, // Условие для поиска записи
+                data, // Данные для обновления
+                SUPABASE_KEY // API-ключ
+        ).execute();
+
+        // Логируем результат
+        if (!response.isSuccessful()) {
+            throw new IOException("Failed to update appointment: " + response.errorBody().string());
+        }
     }
 }
