@@ -1,6 +1,9 @@
 package hehe.miras.kaspibusinesstest.service;
 
 import android.util.Log;
+
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +22,8 @@ import hehe.miras.kaspibusinesstest.model.AltegioResponse;
 public class AltegioService {
     private static final String BASE_URL = "https://api.alteg.io/";
     private static final String PARTNER_TOKEN = "Bearer 6f8c65e9z3j5ssnjsc45"; // <-- Реальный токен
+    private static final String LOGIN = "darmeddir@gmail.com";
+    private static final String PASSWORD = "D1a2i3r4";
     private static final int COMPANY_ID = 690192;
 
     private AltegioApi api;
@@ -41,59 +46,44 @@ public class AltegioService {
         api = retrofit.create(AltegioApi.class);
     }
 
-    // Метод для получения user_token
-    public void authenticateAndFetchAppointments(Callback<List<Appointment>> callback) {
+    public void authenticateSync() throws IOException {
+        // Подготовка данных для аутентификации
         Map<String, String> credentials = new HashMap<>();
-        credentials.put("login", "darmeddir@gmail.com");
-        credentials.put("password", "D1a2i3r4");
+        credentials.put("login", LOGIN);
+        credentials.put("password", PASSWORD);
 
-        api.authenticate(PARTNER_TOKEN, "application/vnd.api.v2+json", credentials).enqueue(new Callback<AltegioAuthResponse>() {
-            @Override
-            public void onResponse(Call<AltegioAuthResponse> call, Response<AltegioAuthResponse> response) {
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    userToken = response.body().getData().getUserToken();
-                    Log.d("Altegio", "Получен userToken: " + userToken);
-                    fetchAppointments(callback);
-                } else {
-                    Log.e("Altegio", "Ошибка авторизации: " + response.code());
-                    callback.onFailure(null, new Throwable("Ошибка авторизации: " + response.code()));
-                }
-            }
+        // Синхронный вызов API для аутентификации
+        Response<AltegioAuthResponse> response = api.authenticate(
+                PARTNER_TOKEN,
+                "application/vnd.api.v2+json",
+                credentials).execute();
 
-            @Override
-            public void onFailure(Call<AltegioAuthResponse> call, Throwable t) {
-                Log.e("Altegio", "Ошибка подключения при авторизации: " + t.getMessage());
-                callback.onFailure(null, t);
-            }
-        });
+        // Проверка успешности ответа
+        if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+            userToken = response.body().getData().getUserToken(); // Сохраняем токен
+        }
     }
 
-    // Метод для получения списка записей с правильными заголовками
-    private void fetchAppointments(Callback<List<Appointment>> callback) {
-        if (userToken == null) {
-            Log.e("Altegio", "userToken отсутствует, невозможно выполнить запрос");
-            callback.onFailure(null, new Throwable("Не удалось получить userToken"));
-            return;
-        }
+    public List<Appointment> fetchAppointmentsSync() throws IOException {
+        List<Appointment> appointments = new ArrayList<>();
 
+        // Сначала выполняем аутентификацию
+        authenticateSync();
+
+        // Формирование заголовка авторизации
         String authHeader = PARTNER_TOKEN + ", User " + userToken;
 
-        api.getAppointments(authHeader, "application/vnd.api.v2+json", COMPANY_ID).enqueue(new Callback<AltegioResponse>() {
-            @Override
-            public void onResponse(Call<AltegioResponse> call, Response<AltegioResponse> response) {
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    callback.onResponse(null, Response.success(response.body().getData()));
-                } else {
-                    Log.e("Altegio", "Ошибка получения записей: " + response.code());
-                    callback.onFailure(null, new Throwable("Ошибка API: " + response.code()));
-                }
-            }
+        // Синхронный вызов API для получения записей
+        Response<AltegioResponse> response = api.getAppointments(
+                authHeader,
+                "application/vnd.api.v2+json",
+                COMPANY_ID).execute();
 
-            @Override
-            public void onFailure(Call<AltegioResponse> call, Throwable t) {
-                Log.e("Altegio", "Ошибка подключения: " + t.getMessage());
-                callback.onFailure(null, t);
-            }
-        });
+        // Проверка успешности ответа
+        if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+            return new ArrayList<>(response.body().getData()); // Возвращаем список записей
+        }
+
+        return appointments;
     }
 }

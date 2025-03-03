@@ -38,15 +38,12 @@ public class WappiService {
             @Override
             public void onResponse(Call<Void> call, retrofit2.Response<Void> response) {
                 if (response.isSuccessful()) {
-                    Log.d("WappiService", "Сообщение успешно отправлено на номер: " + phone);
                 } else {
-                    Log.e("WappiService", "Ошибка при отправке сообщения: " + response.code());
                 }
             }
 
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("WappiService", "Ошибка подключения: " + t.getMessage());
             }
         });
     }

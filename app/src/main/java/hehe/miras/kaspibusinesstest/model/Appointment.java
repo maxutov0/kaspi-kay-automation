@@ -7,6 +7,7 @@ public class Appointment {
     private int id;
     private String date;
     private Client client;
+    public String status = null;
 
     public int getId() {
         return id;

@@ -16,6 +16,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
@@ -35,12 +36,12 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.TimeZone;
-import hehe.miras.kaspibusinesstest.database.AppointmentRepository;
 
 import android.content.Context;
 
 import hehe.miras.kaspibusinesstest.service.WappiService;
 import hehe.miras.kaspibusinesstest.service.SupabaseService;
+import hehe.miras.kaspibusinesstest.service.AltegioService;
 
 import static org.junit.Assert.fail;
 
@@ -49,18 +50,20 @@ import androidx.test.uiautomator.BySelector;
 @RunWith(AndroidJUnit4.class)
 public class KaspiBusinessTest {
 
+    private static final String APP_PACKAGE = "hr.asseco.android.kaspibusiness";
+    private static final String MAIN_ACTIVITY = "kz.kaspibusiness.view.ui.auth.splash.SplashActivity";
+    private static final String TAG = "KaspiBusinessTest";
+    private static final int LAUNCH_TIMEOUT = 300;
+    private static final int TRANSACTION_AMOUNT = 1;
+
     private UiDevice device;
     private WappiService wappiService;
     private SupabaseService supabaseService;
-    private static final String APP_PACKAGE = "hr.asseco.android.kaspibusiness";
-    private static final String MAIN_ACTIVITY = "kz.kaspibusiness.view.ui.auth.splash.SplashActivity";
-    private static final int LAUNCH_TIMEOUT = 30000;
-    private static final String TAG = "KaspiBusinessTest";
-    private static final String MESSAGE_ID_TAG = "MessageIdExtractor";
-    private static final int TRANSACTION_AMOUNT = 1; // Сумма транзакции по умолчанию
-    private List<Appointment> appointments; // Список записей из Altegio
-    private List<String> allowedPhones = new ArrayList<>(); // Массив разрешенных номеров телефонов
-    private List<String> extractedMessageIds = new ArrayList<>(); // List to store extracted message IDs
+    private AltegioService altegioService;
+
+    private List<Appointment> appointments;
+    
+    private List<String> allowedPhones = new ArrayList<>(Arrays.asList("77753251368", "77477898496", "77471022106", "77058805927"));
 
     @Before
     public void setUp() {
@@ -69,22 +72,15 @@ public class KaspiBusinessTest {
         // Инициализация сервисов
         supabaseService = new SupabaseService();
         wappiService = new WappiService();
+        altegioService = new AltegioService();
 
-        // Добавляем разрешенные номера телефонов
-        allowedPhones.add("77753251368");
-        allowedPhones.add("77477898496");
-        allowedPhones.add("77471022106");
-        allowedPhones.add("77058805927");
-
-        // Получаем записи из Altegio перед запуском UI-тестов
-        fetchAppointments();
-
-        // Запуск приложения Kaspi Business
+        // Запуск приложения Kaspi Pay
         String command = "am start -n " + APP_PACKAGE + "/" + MAIN_ACTIVITY;
+        
         try {
             device.executeShellCommand(command);
-        } catch (Exception e) {
-            throw new RuntimeException("Не удалось запустить приложение: " + command, e);
+        } catch (Throwable e) {
+            throw new RuntimeException("Ошибка при запуске приложения", e);
         }
 
         // Ждем загрузки приложения
@@ -92,84 +88,65 @@ public class KaspiBusinessTest {
     }
 
     @Test
-    public void testTransactionFlow() {
-        // Проверяем, что приложение запустилось
-        assertNotNull("Приложение не запустилось", device.findObject(By.pkg(APP_PACKAGE)));
+    public void mainTest() {
+        Log.d(TAG, "Запуск теста");
+
+        // Обновляем статусы выставленных счетов
+        // syncSentInvoices();
+
+        // Отправляем счета или напоминания
+        sendInvoices();
+
+        // Отправляем напоминания
+        // sendReminders();
+
+        Log.d(TAG, "Тест завершен");
+    }
+
+    public void syncSentInvoices() {
+        device.wait(Until.hasObject(By.res(APP_PACKAGE, "historyFragment")), LAUNCH_TIMEOUT);
+        sleep(1000);
+
+        device.findObject(By.res(APP_PACKAGE, "historyFragment")).click();
+        sleep(1000);
+
+        // Получаем список всех счетов
+
+    }
+
+    public void sendInvoices() {
+        Log.d(TAG, "Отправка счетов");
+
+        try {
+            appointments = altegioService.fetchAppointmentsSync();
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка при получении записей из Altegio", e);
+        }
 
         // Проверяем, есть ли записи из Altegio
         if (appointments == null || appointments.isEmpty()) {
-            Log.e("KaspiBusinessTest", "Нет записей из Altegio, тест не выполняется.");
-            return; // Прерываем выполнение теста, если записей нет
+            Log.d(TAG, "Нет записей из Altegio");
+            return;
         }
 
-        // Фильтруем записи по разрешенным номерам телефонов и дате
-        List<Appointment> filteredAppointments = filterByDate(
-                filterAppointmentsByAllowedPhones(appointments),
-                InstrumentationRegistry.getInstrumentation().getTargetContext());
+        // Фильтруем записи по разрешенным номерам телефонов
+        Log.d(TAG, "Фильтрация записей по разрешенным номерам телефонов");
 
-        // Проверяем, есть ли отфильтрованные записи
-        if (filteredAppointments.isEmpty()) {
-            Log.e("KaspiBusinessTest", "Нет записей с разрешенными номерами телефонов, тест не выполняется.");
-            return; // Прерываем выполнение теста, если отфильтрованных записей нет
-        }
+        List<Appointment> filteredAppointments = new ArrayList<>();
 
-        Log.d("KaspiBusinessTest", "Filtered appointments count: " + filteredAppointments.size());
+        for (Appointment appointment : appointments) {
+            String phone = appointment.getClient().getPhone();
 
-        // Обрабатываем каждую запись
-        for (Appointment appointment : filteredAppointments) {
-            Log.d("KaspiBusinessTest", "Processing appointment with phone: " + appointment.getClient().getPhone());
-
-            // Ждем загрузки приложения
-            device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
-
-            // Проверяем, был ли уже выставлен счет по данной записи (синхронно)
-            boolean isProcessed = supabaseService.isAppointmentProcessedSync(appointment.getId());
-            Log.d("KaspiBusinessTest", "isAppointmentProcessedSync result: " + isProcessed);
-
-            if (isProcessed) {
-                // Если счет уже был отправлен, проверяем, прошло ли 10 часов
-                long lastSentTimestamp = supabaseService.getAppointmentTimestamp(appointment.getId());
-                long currentTime = System.currentTimeMillis();
-                long tenHoursInMillis = TimeUnit.HOURS.toMillis(10);
-
-                if (currentTime - lastSentTimestamp >= tenHoursInMillis) {
-                    // Отправляем напоминание через Wappi
-                    String phone = appointment.getClient().getPhone();
-                    String message = "Напоминаем, что у вас есть неоплаченный счет. Пожалуйста, проверьте ваш Kaspi Bank.";
-                    wappiService.sendMessage(phone, message);
-                    Log.d("KaspiBusinessTest", "Напоминание отправлено на номер: " + phone);
-                }
-            } else {
-                // Если счет не был отправлен, отправляем его
-                try {
-                    pressTabButton();
-                    enterPrice(TRANSACTION_AMOUNT); // Используем константу для цены
-                    enterPhoneNumber(appointment.getClient().getPhone());
-
-                    // Вставляем ID записи в поле комментария
-                    enterComment("ID записи: " + appointment.getId());
-
-                    clickSendButton();
-                    clickCloseButton();
-
-                    // Сохраняем информацию о транзакции в Supabase
-                    supabaseService.addProcessedAppointment(appointment.getId(),
-                            System.currentTimeMillis());
-                    Log.d("KaspiBusinessTest",
-                            "Счет отправлен на номер: " + appointment.getClient().getPhone());
-                } catch (Exception e) {
-                    Log.e("KaspiBusinessTest", "Ошибка при обработке транзакции: " + e.getMessage());
-                    fail("Тест завершился с ошибкой: " + e.getMessage());
-                }
+            if (allowedPhones.contains(phone)) {
+                filteredAppointments.add(appointment);
             }
         }
-    }
 
-    private List<Appointment> filterByDate(List<Appointment> appointments, Context context) {
-        List<Appointment> filteredAppointments = new ArrayList<>();
+        // Фильтруем записи по дате
+        Log.d(TAG, "Фильтрация записей по дате");
+
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
 
-        // Устанавливаем таймзону UTC+5
         TimeZone timeZone = TimeZone.getTimeZone("Asia/Oral");
         dateFormat.setTimeZone(timeZone);
 
@@ -177,228 +154,105 @@ public class KaspiBusinessTest {
         long twentyFourHoursInMillis = TimeUnit.HOURS.toMillis(24);
         long maxTime = now + twentyFourHoursInMillis;
 
-        for (Appointment appointment : appointments) {
+        for (Appointment appointment : filteredAppointments) {
             try {
-                // Синхронная проверка, была ли запись уже обработана
-                boolean isProcessed = supabaseService.isAppointmentProcessedSync(appointment.getId());
-
-                if (isProcessed) {
-                    Log.d("KaspiBusinessTest", "❌ Пропущено (уже обработано): ID=" + appointment.getId());
-                    continue; // Пропускаем уже обработанные записи
-                }
-
                 Date appointmentDate = dateFormat.parse(appointment.getDate());
                 if (appointmentDate != null) {
                     long appointmentTime = appointmentDate.getTime();
 
                     // Проверяем, что запись находится в пределах 24 часов от текущего времени
                     if (appointmentTime >= now && appointmentTime <= maxTime) {
-                        Log.d("KaspiBusinessTest", "✅ Запись добавлена: ID=" + appointment.getId());
-                        filteredAppointments.add(appointment);
-
-                        // Добавляем запись в Supabase
-                        supabaseService.addProcessedAppointment(appointment.getId(), System.currentTimeMillis());
-                    } else {
-                        Log.d("KaspiBusinessTest", "❌ Пропущено (не в пределах 24 часов): ID=" + appointment.getId());
-                    }
+                        continue;
+                    } 
                 } else {
-                    Log.d("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId());
                 }
-            } catch (ParseException e) {
-                Log.e("KaspiBusinessTest", "❌ Ошибка парсинга даты: ID=" + appointment.getId(), e);
+            } catch (Throwable e) {
+                Log.e(TAG, "Ошибка при парсинге даты записи " + appointment.getId(), e);
+            }
+
+            filteredAppointments.remove(appointment);
+        }
+
+        // Фильтруем записи по статусу из Supabase
+        Log.d(TAG, "Фильтрация записей по статусу из Supabase");
+        for (Appointment appointment : filteredAppointments) {
+            try {
+                Object supabaseAppointment = supabaseService.getAppointmentSync(appointment.getId());
+                
+                if (supabaseAppointment != null) {
+                    filteredAppointments.remove(appointment);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Ошибка при получении записи из Supabase для записи " + appointment.getId(), e);
+                continue;
             }
         }
 
-        Log.d("KaspiBusinessTest",
-                "📊 Итоговый список записей после фильтрации: " + filteredAppointments.size() + " записей.");
-        return filteredAppointments;
-    }
-
-    /**
-     * Navigate to the History tab if not already there
-     */
-    private void navigateToHistoryTab() {
-        Log.d(MESSAGE_ID_TAG, "Navigating to History tab");
-
-        // Check if we're already on the History tab
-        UiObject2 historyTab = device.findObject(
-                By.res(APP_PACKAGE, "historyFragment"));
-
-        if (historyTab != null) {
-            if (!isSelected(historyTab)) {
-                Log.d(MESSAGE_ID_TAG, "Clicking History tab");
-                historyTab.click();
-                sleep(2000); // Wait for UI to update
-            } else {
-                Log.d(MESSAGE_ID_TAG, "Already on History tab");
-            }
-        } else {
-            Log.e(MESSAGE_ID_TAG, "Could not find History tab");
-        }
-    }
-
-    /**
-     * Extract message IDs from the history list
-     * 
-     * @return List of message IDs
-     */
-    private List<String> extractMessageIds() {
-        List<String> messageIds = new ArrayList<>();
-
-        Log.d(MESSAGE_ID_TAG, "Extracting message IDs");
-
-        // Find the recyclerview containing history items
-        UiObject2 historyList = device.findObject(By.res(APP_PACKAGE, "remoteRV"));
-
-        if (historyList != null) {
-            Log.d(MESSAGE_ID_TAG, "Found history list");
-
-            // Find all elements with comment resource ID
-            List<UiObject2> commentElements = device.findObjects(By.res(APP_PACKAGE, "comment"));
-            Log.d(MESSAGE_ID_TAG, "Found " + commentElements.size() + " comment elements");
-
-            // Extract text from each comment element
-            for (UiObject2 comment : commentElements) {
-                String messageId = comment.getText();
-                messageIds.add(messageId);
-                Log.d(MESSAGE_ID_TAG, "Found message ID: " + messageId);
-            }
-        } else {
-            Log.e(MESSAGE_ID_TAG, "Could not find history list");
+        // Проверяем, есть ли отфильтрованные записи для отправки счетов
+        if (filteredAppointments.isEmpty()) {
+            Log.d(TAG, "Нет записей для отправки счетов");
+            return;
         }
 
-        return messageIds;
-    }
-
-    /**
-     * Helper method to check if a UI element is selected
-     */
-    private boolean isSelected(UiObject2 element) {
-        Boolean selected = element.isSelected();
-        return selected != null && selected;
-    }
-
-    private List<Appointment> filterAppointmentsByAllowedPhones(List<Appointment> appointments) {
-        List<Appointment> filteredAppointments = new ArrayList<>();
-        for (Appointment appointment : appointments) {
-            String phone = appointment.getClient().getPhone();
-            // Log.d("KaspiBusinessTest", "Checking phone: " + phone); // Log the phone
-            // being checked
-
-            if (allowedPhones.contains(phone)) {
-                Log.d("KaspiBusinessTest", "Phone allowed: " + phone); // Log the phone if it's allowed
-                filteredAppointments.add(appointment);
-            } else {
-                // Log.d("KaspiBusinessTest", "Phone not allowed: " + phone); // Log the phone
-                // if it's not allowed
+        // Отправляем счета в первый раз
+        for (Appointment appointment : filteredAppointments) {
+            try {
+                sendInvoice(appointment);
+            } catch (Throwable e) {
+                Log.e(TAG, "Ошибка при отправке счета для записи " + appointment.getId(), e);
             }
         }
-        return filteredAppointments;
     }
 
-    private void pressTabButton() {
+    public void sendReminders()
+    {
+
+    }
+
+    public void sendInvoice(Appointment appointment) {
+        Log.d(TAG, "Отправка счета для записи " + appointment.getId());
+
+        // // Ждем загрузки приложения
+        // device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
+
+        // device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
+        // sleep(1000);
+
+        // device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
+        // sleep(1000);
+
+        // // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
+        // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText("77477898496");
+        // sleep(1000);
+
+        // device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
+        // sleep(1000);
+
+        // device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
+        // sleep(3500);
+
+        // device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
+        // sleep(1000);
+
+        // Сохраняем запись в Supabase
         try {
-            // Ищем элемент по resource-id
-            UiObject tabButton = device.findObject(
-                    new UiSelector().resourceId("hr.asseco.android.kaspibusiness:id/remotePaymentFragment"));
-
-            // Если элемент найден, кликаем
-            if (tabButton.exists() && tabButton.isEnabled()) {
-                tabButton.click();
-                sleep(2000);
-            } else {
-                throw new AssertionError("Не удалось найти или активировать кнопку 'Удалённо'");
-            }
+            supabaseService.addAppointmentSync(appointment);
         } catch (Exception e) {
-            throw new RuntimeException("Ошибка при нажатии на кнопку 'Удалённо': " + e.getMessage());
+            Log.e(TAG, "Ошибка при добавлении Supabase записи " + appointment.getId(), e);
         }
+
+        Log.d(TAG, "Счет отправлен для записи " + appointment.getId());
     }
 
-    private void enterPrice(int price) {
-        device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(price));
-        sleep(2000);
-    }
+    public void sendReminder(Appointment appointment) {
 
-    private void enterPhoneNumber(String phone) {
-        device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(phone);
-        sleep(2000);
-    }
-
-    private void enterComment(String comment) {
-        device.findObject(By.res(APP_PACKAGE, "editText")).setText(comment);
-        sleep(2000);
-    }
-
-    private void clickSendButton() {
-        // Получаем текущий ID записи
-        int appointmentId = getCurrentAppointmentId();
-
-        // Нажимаем кнопку отправки
-        device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
-        sleep(3500);
-
-        // Сохраняем время отправки счета
-        long currentTime = System.currentTimeMillis();
-        AppointmentRepository repository = new AppointmentRepository(
-                InstrumentationRegistry.getInstrumentation().getTargetContext());
-        repository.addProcessedAppointment(appointmentId, currentTime);
-    }
-
-    private int getCurrentAppointmentId() {
-        // Реализуйте логику для получения ID текущего appointment
-        // Например, если у вас есть список appointments, вы можете использовать его
-        return appointments.get(0).getId(); // Пример, замените на реальную логику
-    }
-
-    private void clickCloseButton() {
-        device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
-        sleep(2000);
     }
 
     private void sleep(int millis) {
         try {
             Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void fetchAppointments() {
-        CountDownLatch latch = new CountDownLatch(1);
-
-        AltegioService altegioService = new AltegioService();
-        altegioService.authenticateAndFetchAppointments(new Callback<List<Appointment>>() {
-            @Override
-            public void onResponse(Call<List<Appointment>> call, Response<List<Appointment>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    appointments = response.body();
-
-                    Log.d("KaspiBusinessTest", "Fetched " + appointments.size() + " records from Altegio");
-
-                    // Log details of each fetched record
-                    // for (Appointment appointment : appointments) {
-                    // Log.d("KaspiBusinessTest", "Fetched Record - ID: " + appointment.getId() +
-                    // ", Client Name: " + appointment.getClient().getName() +
-                    // ", Phone: " + appointment.getClient().getPhone() +
-                    // ", Datetime: " + appointment.getDate());
-                    // }
-                } else {
-                    Log.e("KaspiBusinessTest", "Ошибка запроса: " + response.code());
-                }
-                latch.countDown(); // Освобождаем поток после завершения запроса
-            }
-
-            @Override
-            public void onFailure(Call<List<Appointment>> call, Throwable t) {
-                Log.e("KaspiBusinessTest", "Ошибка подключения: " + t.getMessage());
-                latch.countDown(); // Освобождаем поток даже при ошибке
-            }
-        });
-
-        try {
-            latch.await(); // Ожидание завершения запроса перед выполнением теста
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        } catch (Throwable e) {
+            Log.e(TAG, "Ошибка при паузе", e);
         }
     }
 }

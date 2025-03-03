@@ -14,6 +14,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import hehe.miras.kaspibusinesstest.api.SupabaseApi;
+import hehe.miras.kaspibusinesstest.model.Appointment;
+
 public class SupabaseService {
 
     private static final String SUPABASE_URL = "https://lwfrkbkcvkgzxolvvpra.supabase.co/rest/v1/";
@@ -30,119 +33,23 @@ public class SupabaseService {
         api = retrofit.create(SupabaseApi.class);
     }
 
-    // Добавление записи в Supabase
-    public void addProcessedAppointment(int appointmentId, long timestamp) {
+    public void addAppointmentSync(Appointment appointment) throws IOException {
         Map<String, Object> data = new HashMap<>();
-        data.put("id", appointmentId);
-        data.put("timestamp", timestamp);
+        data.put("altegio_id", appointment.getId());
 
-        Call<Void> call = api.insertAppointment(data, SUPABASE_KEY);
-        call.enqueue(new retrofit2.Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, retrofit2.Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Log.d("SupabaseService", "Запись успешно добавлена в Supabase: ID=" + appointmentId);
-                } else {
-                    Log.e("SupabaseService", "Ошибка при добавлении записи: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("SupabaseService", "Ошибка подключения: " + t.getMessage());
-            }
-        });
+        Response<Void> response = api.insertAppointment(data, SUPABASE_KEY).execute();
     }
 
-    // Проверка, была ли запись уже обработана (асинхронная)
-    public void isAppointmentProcessed(int appointmentId, SupabaseCallback<Boolean> callback) {
+    // Получение записи из Supabase
+    public Map<String, Object> getAppointmentSync(int appointmentId) throws IOException {
         Call<Map<String, Object>> call = api.getAppointment(appointmentId, SUPABASE_KEY);
-        call.enqueue(new retrofit2.Callback<Map<String, Object>>() {
-            @Override
-            public void onResponse(Call<Map<String, Object>> call, retrofit2.Response<Map<String, Object>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    callback.onResult(true); // Запись найдена, значит, она уже обработана
-                } else {
-                    callback.onResult(false); // Запись не найдена
-                }
-            }
 
-            @Override
-            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                Log.e("SupabaseService", "Ошибка подключения: " + t.getMessage());
-                callback.onResult(false);
-            }
-        });
-    }
+        Response<Map<String, Object>> response = call.execute();
 
-    // Проверка, была ли запись уже обработана (синхронная)
-    public boolean isAppointmentProcessedSync(int appointmentId) {
-        Call<Map<String, Object>> call = api.getAppointment(appointmentId, SUPABASE_KEY);
-        Log.d("SupabaseService", "Запрос к Supabase: " + call.request().url()); // Логируем URL запроса
-    
-        try {
-            Response<Map<String, Object>> response = call.execute();
-            Log.d("SupabaseService", "Ответ от Supabase: " + response.code()); // Логируем код ответа
-            if (response.isSuccessful() && response.body() != null) {
-                return true; // Запись найдена, значит, она уже обработана
-            }
-        } catch (IOException e) {
-            Log.e("SupabaseService", "Ошибка подключения: " + e.getMessage());
+        if (response.isSuccessful() && response.body() != null) {
+            return response.body();
         }
-        return false; // Запись не найдена
-    }
 
-    // Получение времени отправки счета
-    public long getAppointmentTimestamp(int appointmentId) {
-        Call<Map<String, Object>> call = api.getAppointment(appointmentId, SUPABASE_KEY);
-        try {
-            Response<Map<String, Object>> response = call.execute();
-            if (response.isSuccessful() && response.body() != null) {
-                return (long) response.body().get("timestamp");
-            }
-        } catch (IOException e) {
-            Log.e("SupabaseService", "Ошибка при получении времени отправки счета: " + e.getMessage());
-        }
-        return -1; // Возвращаем -1, если время не найдено
-    }
-
-    // Добавление messageId в Supabase
-    public void addMessageId(String messageId) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("message_id", messageId);
-
-        Call<Void> call = api.insertMessageId(data, SUPABASE_KEY);
-        call.enqueue(new retrofit2.Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, retrofit2.Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Log.d("SupabaseService", "Message ID успешно добавлен в Supabase: " + messageId);
-                } else {
-                    Log.e("SupabaseService", "Ошибка при добавлении Message ID: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("SupabaseService", "Ошибка подключения: " + t.getMessage());
-            }
-        });
-    }
-
-    // Интерфейс для обратного вызова
-    public interface SupabaseCallback<T> {
-        void onResult(T result);
-    }
-
-    // Интерфейс Supabase API
-    private interface SupabaseApi {
-        @POST("processed_appointments")
-        Call<Void> insertAppointment(@Body Map<String, Object> data, @Query("apikey") String apiKey);
-
-        @GET("processed_appointments")
-        Call<Map<String, Object>> getAppointment(@Query("id") int appointmentId, @Query("apikey") String apiKey);
-
-        @POST("message_ids") // Предположим, что таблица для message_id называется "message_ids"
-        Call<Void> insertMessageId(@Body Map<String, Object> data, @Query("apikey") String apiKey);
+        return null;
     }
 }
