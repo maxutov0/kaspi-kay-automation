@@ -105,10 +105,10 @@ public class KaspiBusinessTest {
         syncSentInvoices();
 
         // Отправляем счета или напоминания
-        // sendInvoices();
+        sendInvoices();
 
         // Отправляем напоминания
-        // sendReminders();
+        sendReminders();
 
         Log.d(TAG, "Тест завершен");
     }
@@ -172,10 +172,31 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Найдено " + invoicesIds.size() + " счетов");
 
         // Список для хранения данных о счетах
-        List<Appointment> invoices = new ArrayList<>();
+        List<Appointment> appointments = new ArrayList<>();
+
+        for(String invoideId: invoicesIds) {
+            appointments.add(new Appointment(
+                Integer.parseInt(invoideId),
+                null,
+                null,
+                "paid",
+                null,
+                null,
+                null
+            ));
+        }
 
         // Обновляем записи Supabase
-        
+        for(Appointment appointment: appointments) {
+            try {
+                supabaseService.updateAppointmentSync(appointment.getId(), appointment.getStatus());
+                Log.d(TAG, "Запись в Supabase обновлен ID: " + appointment.getId()); 
+            } catch (Exception e) {
+                Log.e(TAG, "Ошибка при получении записи Supabase", e);
+            }
+        }
+
+        Log.d(TAG, "Завершено обновления базы данных Supabase");
     }
 
     public void sendInvoices() {
