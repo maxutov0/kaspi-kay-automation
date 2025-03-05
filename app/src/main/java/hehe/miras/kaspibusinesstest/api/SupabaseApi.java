@@ -22,6 +22,7 @@ public interface SupabaseApi {
                         @Query("created_at") String createdAt, // Передаем как строку
                         @Query("status") String status, // Передаем как строку
                         @Query("order") String orderBy, // Передаем как строку
+                        @Query("date") String date, // Передаем как строку
                         @Query("apikey") String apiKey);
 
         @PATCH("appointments")

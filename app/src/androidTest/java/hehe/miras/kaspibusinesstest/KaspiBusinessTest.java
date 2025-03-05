@@ -132,6 +132,11 @@ public class KaspiBusinessTest {
         // Находим список счетов как UiScrollable
         UiObject2 invoiceList = device.findObject(By.res(APP_PACKAGE, "operationsRv"));
 
+        if(invoiceList == null) {
+            Log.d(TAG, "Список счетов не найден");
+            return;
+        }
+
         int lastFoundCount = 0; // Хранит количество найденных элементов на предыдущей итерации
         int unchangedCount = 0; // Счетчик для отслеживания, сколько раз количество не менялось
 
@@ -272,7 +277,7 @@ public class KaspiBusinessTest {
                 String altegioIdParam = "eq." + appointment.getId(); // Формируем параметр для altegio_id
 
                 List<Appointment> supabaseAppointments = supabaseService.getAppointmentsSync(altegioIdParam, null, null,
-                        null);
+                        null, null);
 
                 if (supabaseAppointments.isEmpty()) {
                     Log.d(TAG, "Запись в Supabase не найдена");
@@ -311,19 +316,21 @@ public class KaspiBusinessTest {
         List<Appointment> appointmentsWithInvoices = new ArrayList<>();
 
         try {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault());
             dateFormat.setTimeZone(TimeZone.getTimeZone("UTC")); // Устанавливаем часовой пояс UTC
+        
             long now = System.currentTimeMillis();
             long tenHoursInMillis = TimeUnit.HOURS.toMillis(10);
-            long minTime = now - tenHoursInMillis;
-            Date date = new Date(minTime);
-
-            String createdAtParam = "lte." + dateFormat.format(date).replace(" ", "+"); // Формируем параметр для
+            long oneHourInMillis = TimeUnit.HOURS.toMillis(1);
+        
+            // Формируем параметры в формате ISO 8601 с указанием временной зоны
+            String createdAtParam = "lte." + dateFormat.format(new Date(now - oneHourInMillis));
             String statusParam = "eq.invoice_sent"; // Формируем параметр для status
             String orderByParam = "id.desc"; // Формируем параметр для order
-
+            String dateParam = "lte." + dateFormat.format(new Date(now + tenHoursInMillis));
+        
             appointmentsWithInvoices = supabaseService.getAppointmentsSync(null, createdAtParam, statusParam,
-                    orderByParam);
+                    orderByParam, dateParam);
         } catch (Exception e) {
             throw new RuntimeException("Ошибка при получении записей из Supabase", e);
         }
@@ -352,25 +359,25 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Отправка счета для записи " + appointment.getId());
 
         // Ждем загрузки приложения
-        device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
+        // device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
-        device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
-        sleep(1000);
+        // device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
+        // sleep(1000);
 
-        device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
-        sleep(1000);
+        // device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
+        // sleep(1000);
 
-        device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
-        sleep(1000);
+        // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
+        // sleep(1000);
 
-        device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
-        sleep(1000);
+        // device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
+        // sleep(1000);
 
-        device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
-        sleep(3500);
+        // device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
+        // sleep(3500);
 
-        device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
-        sleep(1000);
+        // device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
+        // sleep(1000);
 
         // Сохраняем запись в Supabase
         try {

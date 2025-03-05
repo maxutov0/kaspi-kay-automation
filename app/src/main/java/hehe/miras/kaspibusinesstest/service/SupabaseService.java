@@ -11,10 +11,15 @@ import retrofit2.http.POST;
 import retrofit2.http.Query;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.List;
+import java.util.Locale;
 
 import hehe.miras.kaspibusinesstest.api.SupabaseApi;
 import hehe.miras.kaspibusinesstest.model.Appointment;
@@ -40,17 +45,43 @@ public class SupabaseService {
         data.put("altegio_id", appointment.getId());
         data.put("phone", appointment.getClient().getPhone());
         data.put("name", appointment.getClient().getName());
+        // Input date string in Asia/Oral timezone
+        String dateString = appointment.getDate(); // e.g., "2025-03-06 04:45:00"
 
-        Response<Void> response = api.insertAppointment(data, SUPABASE_KEY).execute();
+        // Create a SimpleDateFormat for parsing the input date string
+        SimpleDateFormat oralDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+        TimeZone oralTimeZone = TimeZone.getTimeZone("Asia/Oral");
+        oralDateFormat.setTimeZone(oralTimeZone);
+
+        // Create a SimpleDateFormat for formatting the date in UTC
+        SimpleDateFormat utcDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+        TimeZone utcTimeZone = TimeZone.getTimeZone("UTC");
+        utcDateFormat.setTimeZone(utcTimeZone);
+
+        try {
+            // Step 1: Parse the date string in Asia/Oral timezone
+            Date date = oralDateFormat.parse(dateString);
+            // Step 2: Format the parsed date into UTC
+            String utcDateString = utcDateFormat.format(date);
+            // Step 3: Store the UTC date string in the data map
+            data.put("date", utcDateString);
+        } catch (ParseException e) {
+            Log.e("SupabaseService", "Failed to parse date", e);
+        }
+
+        Response<Void> response = api.insertAppointment(data,
+                SUPABASE_KEY).execute();
 
         if (!response.isSuccessful()) {
-            throw new IOException("Failed to insert appointment: " + response.errorBody().string());
+            throw new IOException("Failed to insert appointment: " +
+                    response.errorBody().string());
         }
     }
 
-    public List<Appointment> getAppointmentsSync(String altegioId, String createdAt, String status, String orderBy)
+    public List<Appointment> getAppointmentsSync(String altegioId, String createdAt, String status, String orderBy,
+            String date)
             throws IOException {
-        Response<List<Object>> response = api.getAppointment(altegioId, createdAt, status, orderBy, SUPABASE_KEY)
+        Response<List<Object>> response = api.getAppointment(altegioId, createdAt, status, orderBy, date, SUPABASE_KEY)
                 .execute();
 
         if (!response.isSuccessful()) {
@@ -71,9 +102,8 @@ public class SupabaseService {
                     (String) map.get("status"),
                     (String) map.get("phone"),
                     (String) map.get("name"),
-                    (String) map.get("created_at"))
-                    );
-                    
+                    (String) map.get("created_at")));
+
         }
 
         return appointments;
