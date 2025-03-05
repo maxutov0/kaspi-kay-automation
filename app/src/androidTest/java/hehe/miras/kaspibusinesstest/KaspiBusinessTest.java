@@ -359,25 +359,25 @@ public class KaspiBusinessTest {
         Log.d(TAG, "Отправка счета для записи " + appointment.getId());
 
         // Ждем загрузки приложения
-        // device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
+        device.wait(Until.hasObject(By.res(APP_PACKAGE, "remotePaymentFragment")), LAUNCH_TIMEOUT);
 
-        // device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "remotePaymentFragment")).click();
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "amountPhoneEt")).setText(String.valueOf(TRANSACTION_AMOUNT));
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "phoneNumberEt")).setText(appointment.getClient().getPhone());
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "editText")).setText("" + appointment.getId());
+        sleep(1000);
 
-        // device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
-        // sleep(3500);
+        device.findObject(By.res(APP_PACKAGE, "sendTransferBtn")).click();
+        sleep(3500);
 
-        // device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
-        // sleep(1000);
+        device.findObject(By.res(APP_PACKAGE, "closeBtn")).click();
+        sleep(1000);
 
         // Сохраняем запись в Supabase
         try {
