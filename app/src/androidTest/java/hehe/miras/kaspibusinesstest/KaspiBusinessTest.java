@@ -73,7 +73,7 @@ public class KaspiBusinessTest {
     private List<Appointment> appointments;
 
     private List<String> allowedPhones = new ArrayList<>(
-            Arrays.asList("77753251368", "77477898496", "77471022106", "77058805927"));
+            Arrays.asList("77753251368", "77477898496", "77471022106", "77058805927", "77029342227"));
 
     @Before
     public void setUp() {
